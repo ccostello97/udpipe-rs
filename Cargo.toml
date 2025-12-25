@@ -1,0 +1,22 @@
+[package]
+name = "udpipe-rs"
+version = "0.1.1"
+edition = "2024"
+authors = ["Christopher Costello"]
+description = "Rust bindings for UDPipe - a trainable pipeline for tokenization, tagging, lemmatization and dependency parsing of CoNLL-U files"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ccostello97/udpipe-rs"
+keywords = ["nlp", "parsing", "udpipe", "dependency-parsing", "pos-tagging"]
+categories = ["text-processing", "science"]
+readme = "README.md"
+
+[build-dependencies]
+cc = "1.0"
+ureq = "3.1"
+zip = "7.0.0"
+
+[dependencies]
+ureq = "3.1"
+
+[dev-dependencies]
+tempfile = "3.15"
