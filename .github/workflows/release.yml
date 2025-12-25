@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dtolnay/rust-action@stable
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: MarcoIeni/release-plz-action@v0.5
         env:
