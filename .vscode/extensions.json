@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "davidanson.vscode-markdownlint",
+    "eamodio.gitlens",
+    "EditorConfig.EditorConfig",
+    "fill-labs.dependi",
+    "ldez.ignore-files",
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml",
+    "usernamehw.errorlens",
+    "vadimcn.vscode-lldb"
+  ]
+}
