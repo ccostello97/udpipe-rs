@@ -220,6 +220,18 @@ mod ffi {
     }
 }
 
+/// Get the last error from the FFI layer, or return a default message.
+fn get_ffi_error(default: &str) -> String {
+    unsafe {
+        let err_ptr = ffi::udpipe_get_error();
+        if err_ptr.is_null() {
+            default.to_string()
+        } else {
+            CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
+        }
+    }
+}
+
 /// UDPipe model wrapper.
 ///
 /// This is the main type for loading and using UDPipe models.
@@ -249,15 +261,9 @@ impl Model {
         let model = unsafe { ffi::udpipe_model_load(c_path.as_ptr()) };
 
         if model.is_null() {
-            let error = unsafe {
-                let err_ptr = ffi::udpipe_get_error();
-                if err_ptr.is_null() {
-                    "Failed to load model".to_string()
-                } else {
-                    CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
-                }
-            };
-            return Err(UdpipeError { message: error });
+            return Err(UdpipeError {
+                message: get_ffi_error("Failed to load model"),
+            });
         }
 
         Ok(Model { inner: model })
@@ -277,15 +283,9 @@ impl Model {
         let model = unsafe { ffi::udpipe_model_load_from_memory(data.as_ptr(), data.len()) };
 
         if model.is_null() {
-            let error = unsafe {
-                let err_ptr = ffi::udpipe_get_error();
-                if err_ptr.is_null() {
-                    "Failed to load model from memory".to_string()
-                } else {
-                    CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
-                }
-            };
-            return Err(UdpipeError { message: error });
+            return Err(UdpipeError {
+                message: get_ffi_error("Failed to load model from memory"),
+            });
         }
 
         Ok(Model { inner: model })
@@ -312,15 +312,9 @@ impl Model {
         let result = unsafe { ffi::udpipe_parse(self.inner, c_text.as_ptr()) };
 
         if result.is_null() {
-            let error = unsafe {
-                let err_ptr = ffi::udpipe_get_error();
-                if err_ptr.is_null() {
-                    "Failed to parse text".to_string()
-                } else {
-                    CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
-                }
-            };
-            return Err(UdpipeError { message: error });
+            return Err(UdpipeError {
+                message: get_ffi_error("Failed to parse text"),
+            });
         }
 
         let word_count = unsafe { ffi::udpipe_result_word_count(result) };
@@ -502,36 +496,12 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
     }
 
     // Construct filename and URL
-    let filename = format!("{}-ud-2.5-191206.udpipe", language);
+    let filename = model_filename(language);
     let dest_path = dest_dir.join(&filename);
     let url = format!("{}/{}", MODEL_BASE_URL, filename);
 
-    // Create destination directory if needed
-    std::fs::create_dir_all(dest_dir)?;
-
-    // Download using ureq
-    let response = ureq::get(&url).call().map_err(|e| UdpipeError {
-        message: format!("Failed to download model: {}", e),
-    })?;
-
-    // Read response body
-    let mut data = Vec::new();
-    response
-        .into_body()
-        .into_reader()
-        .read_to_end(&mut data)
-        .map_err(|e| UdpipeError {
-            message: format!("Failed to read response: {}", e),
-        })?;
-
-    if data.is_empty() {
-        return Err(UdpipeError {
-            message: "Downloaded file is empty".to_string(),
-        });
-    }
-
-    // Write to file
-    std::fs::write(&dest_path, &data)?;
+    // Download using the generic download function
+    download_model_from_url(&url, &dest_path)?;
 
     Ok(dest_path.to_string_lossy().into_owned())
 }
