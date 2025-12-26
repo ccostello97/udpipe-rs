@@ -151,3 +151,42 @@ fn test_xpostag_field() {
         assert!(word.xpostag.is_ascii() || word.xpostag.is_empty());
     }
 }
+
+#[test]
+fn test_parse_with_null_byte() {
+    let model = get_model();
+    let result = model.parse("Hello\0world");
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.message.contains("null byte"));
+}
+
+#[test]
+fn test_load_from_memory() {
+    // First download the model to get a valid file
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+    let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
+        .expect("Failed to download model");
+
+    // Read model into memory
+    let model_data = std::fs::read(&model_path).expect("Failed to read model file");
+
+    // Load from memory
+    let model =
+        udpipe_rs::Model::load_from_memory(&model_data).expect("Failed to load from memory");
+
+    // Verify it works
+    let words = model.parse("Test sentence.").expect("Failed to parse");
+    assert!(!words.is_empty());
+}
+
+#[test]
+fn test_model_drop() {
+    // Test explicit drop to help coverage track the Drop impl
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+    let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
+        .expect("Failed to download model");
+
+    let model = udpipe_rs::Model::load(&model_path).expect("Failed to load model");
+    drop(model); // Explicit drop - coverage tools sometimes miss implicit drops
+}
