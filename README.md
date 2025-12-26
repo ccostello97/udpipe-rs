@@ -1,5 +1,19 @@
 # udpipe-rs
 
+[![Crates.io][crates-badge]][crates-url]
+[![Documentation][docs-badge]][docs-url]
+[![MIT/Apache-2.0 licensed][license-badge]][license-url]
+[![Build Status][actions-badge]][actions-url]
+
+[crates-badge]: https://img.shields.io/crates/v/udpipe-rs.svg
+[crates-url]: https://crates.io/crates/udpipe-rs
+[docs-badge]: https://docs.rs/udpipe-rs/badge.svg
+[docs-url]: https://docs.rs/udpipe-rs
+[license-badge]: https://img.shields.io/crates/l/udpipe-rs.svg
+[license-url]: #license
+[actions-badge]: https://github.com/ccostello97/udpipe-rs/workflows/CI/badge.svg
+[actions-url]: https://github.com/ccostello97/udpipe-rs/actions?query=workflow%3ACI
+
 Rust bindings for [UDPipe](https://ufal.mff.cuni.cz/udpipe) — a trainable pipeline for tokenization, tagging, lemmatization, and dependency parsing using Universal Dependencies.
 
 ## Features

@@ -221,6 +221,9 @@ mod ffi {
 }
 
 /// Get the last error from the FFI layer, or return a default message.
+///
+/// Note: The default path (null error pointer) cannot be tested as UDPipe
+/// always provides an error message when operations fail.
 fn get_ffi_error(default: &str) -> String {
     unsafe {
         let err_ptr = ffi::udpipe_get_error();
@@ -229,6 +232,20 @@ fn get_ffi_error(default: &str) -> String {
         } else {
             CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
         }
+    }
+}
+
+/// Check if an FFI result pointer is null and return an error if so.
+///
+/// Note: Cannot be tested as FFI parse operations never return null for
+/// valid models - this is defensive programming against UDPipe bugs.
+fn check_ffi_result<T>(ptr: *mut T, error_msg: &str) -> Result<*mut T, UdpipeError> {
+    if ptr.is_null() {
+        Err(UdpipeError {
+            message: get_ffi_error(error_msg),
+        })
+    } else {
+        Ok(ptr)
     }
 }
 
@@ -310,12 +327,7 @@ impl Model {
         })?;
 
         let result = unsafe { ffi::udpipe_parse(self.inner, c_text.as_ptr()) };
-
-        if result.is_null() {
-            return Err(UdpipeError {
-                message: get_ffi_error("Failed to parse text"),
-            });
-        }
+        let result = check_ffi_result(result, "Failed to parse text")?;
 
         let word_count = unsafe { ffi::udpipe_result_word_count(result) };
         let mut words = Vec::with_capacity(word_count as usize);
@@ -525,10 +537,10 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
     let path = path.as_ref();
 
     // Create parent directories if needed
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
     }
 
     // Download using ureq
@@ -760,5 +772,115 @@ mod tests {
 
         word.misc = "SpaceAfter=No|Other=Value".to_string();
         assert!(!word.space_after());
+    }
+
+    #[test]
+    fn test_model_load_nonexistent_file() {
+        let result = Model::load("/nonexistent/path/to/model.udpipe");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_model_load_path_with_null_byte() {
+        let result = Model::load("path\0with\0nulls.udpipe");
+        let err = result.err().expect("expected error");
+        assert!(err.message.contains("null byte"));
+    }
+
+    #[test]
+    fn test_model_load_from_memory_empty() {
+        let result = Model::load_from_memory(&[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_model_load_from_memory_invalid() {
+        let garbage = b"this is not a valid udpipe model";
+        let result = Model::load_from_memory(garbage);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_download_model_from_url_invalid_url() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("model.udpipe");
+        let result = download_model_from_url("http://invalid.invalid/no-such-model", &path);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("Failed to download"));
+    }
+
+    #[test]
+    fn test_download_model_from_url_empty_response() {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("GET", "/empty-model.udpipe")
+            .with_status(200)
+            .with_body("")
+            .create();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("model.udpipe");
+        let url = format!("{}/empty-model.udpipe", server.url());
+
+        let result = download_model_from_url(&url, &path);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("empty"));
+
+        mock.assert();
+    }
+
+    #[test]
+    fn test_download_model_from_url_creates_parent_dirs() {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("GET", "/model.udpipe")
+            .with_status(200)
+            .with_body("fake model data")
+            .create();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("nested/dir/model.udpipe");
+        let url = format!("{}/model.udpipe", server.url());
+
+        let result = download_model_from_url(&url, &path);
+        assert!(result.is_ok());
+        assert!(path.exists());
+
+        mock.assert();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_download_model_from_url_readonly_dir() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut server = mockito::Server::new();
+        let _mock = server
+            .mock("GET", "/model.udpipe")
+            .with_status(200)
+            .with_body("fake model data")
+            .create();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let readonly_dir = temp_dir.path().join("readonly");
+        std::fs::create_dir(&readonly_dir).unwrap();
+
+        // Make directory read-only
+        let mut perms = std::fs::metadata(&readonly_dir).unwrap().permissions();
+        perms.set_mode(0o444);
+        std::fs::set_permissions(&readonly_dir, perms.clone()).unwrap();
+
+        let path = readonly_dir.join("nested/model.udpipe");
+        let url = format!("{}/model.udpipe", server.url());
+
+        let result = download_model_from_url(&url, &path);
+
+        // Restore permissions before asserting (so temp_dir can be cleaned up)
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&readonly_dir, perms).unwrap();
+
+        assert!(result.is_err());
     }
 }
