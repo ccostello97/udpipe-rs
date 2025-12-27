@@ -54,20 +54,20 @@ test-integration: ## Run integration tests only
 	cargo test --test '*'
 
 # === Coverage ===
-coverage: ## Show coverage summary (fail if <90%)
+coverage: ## Show coverage summary (fail if <100% function coverage)
 	@command -v cargo-llvm-cov >/dev/null || cargo install --locked cargo-llvm-cov
 	@rustup component list --installed | grep -q llvm-tools-preview || rustup component add llvm-tools-preview
-	cargo llvm-cov --fail-under-lines 90
+	cargo llvm-cov --fail-under-functions 100
 
-coverage-html: ## Generate HTML coverage report (fail if <90%)
+coverage-html: ## Generate HTML coverage report (fail if <100% function coverage)
 	@command -v cargo-llvm-cov >/dev/null || cargo install --locked cargo-llvm-cov
 	@rustup component list --installed | grep -q llvm-tools-preview || rustup component add llvm-tools-preview
-	cargo llvm-cov --html --open --fail-under-lines 90
+	cargo llvm-cov --html --open --fail-under-functions 100
 
-coverage-lcov: ## Generate lcov.info for CI (fail if <90%)
+coverage-lcov: ## Generate lcov.info for CI (fail if <100% function coverage)
 	@command -v cargo-llvm-cov >/dev/null || cargo install --locked cargo-llvm-cov
 	@rustup component list --installed | grep -q llvm-tools-preview || rustup component add llvm-tools-preview
-	cargo llvm-cov --lcov --output-path lcov.info --fail-under-lines 90
+	cargo llvm-cov --lcov --output-path lcov.info --fail-under-functions 100
 
 # === Cleanup ===
 clean: ## Remove build artifacts
