@@ -1,18 +1,29 @@
 # udpipe-rs
 
 [![Crates.io][crates-badge]][crates-url]
+[![Downloads][downloads-badge]][crates-url]
 [![Documentation][docs-badge]][docs-url]
-[![MIT/Apache-2.0 licensed][license-badge]][license-url]
 [![Build Status][actions-badge]][actions-url]
+[![Coverage][codecov-badge]][codecov-url]
+[![MSRV][msrv-badge]][msrv-url]
+[![Dependencies][deps-badge]][deps-url]
+[![MIT/Apache-2.0 licensed][license-badge]][license-url]
 
 [crates-badge]: https://img.shields.io/crates/v/udpipe-rs.svg
 [crates-url]: https://crates.io/crates/udpipe-rs
-[docs-badge]: https://docs.rs/udpipe-rs/badge.svg
+[downloads-badge]: https://img.shields.io/crates/d/udpipe-rs.svg
+[docs-badge]: https://img.shields.io/docsrs/udpipe-rs
 [docs-url]: https://docs.rs/udpipe-rs
-[license-badge]: https://img.shields.io/crates/l/udpipe-rs.svg
-[license-url]: #license
 [actions-badge]: https://github.com/ccostello97/udpipe-rs/workflows/CI/badge.svg
 [actions-url]: https://github.com/ccostello97/udpipe-rs/actions?query=workflow%3ACI
+[codecov-badge]: https://codecov.io/gh/ccostello97/udpipe-rs/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/ccostello97/udpipe-rs
+[msrv-badge]: https://img.shields.io/badge/MSRV-1.85-blue.svg
+[msrv-url]: https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html
+[deps-badge]: https://deps.rs/repo/github/ccostello97/udpipe-rs/status.svg
+[deps-url]: https://deps.rs/repo/github/ccostello97/udpipe-rs
+[license-badge]: https://img.shields.io/crates/l/udpipe-rs.svg
+[license-url]: #license
 
 Rust bindings for [UDPipe](https://ufal.mff.cuni.cz/udpipe) — a trainable pipeline for tokenization, tagging, lemmatization, and dependency parsing using Universal Dependencies.
 

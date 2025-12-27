@@ -1,11 +1,12 @@
 name: CI
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-  pull_request:
-  merge_group:
 
 permissions:
   contents: read
@@ -100,5 +101,6 @@ jobs:
       - run: cargo llvm-cov --lcov --output-path lcov.info --fail-under-lines 90
       - uses: codecov/codecov-action@v5.5.2
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
-        continue-on-error: true
+          fail_ci_if_error: true
