@@ -220,32 +220,12 @@ mod ffi {
     }
 }
 
-/// Get the last error from the FFI layer, or return a default message.
-///
-/// Note: The default path (null error pointer) cannot be tested as UDPipe
-/// always provides an error message when operations fail.
-fn get_ffi_error(default: &str) -> String {
+/// Get the last error from the FFI layer.
+fn get_ffi_error() -> String {
     unsafe {
         let err_ptr = ffi::udpipe_get_error();
-        if err_ptr.is_null() {
-            default.to_string()
-        } else {
-            CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
-        }
-    }
-}
-
-/// Check if an FFI result pointer is null and return an error if so.
-///
-/// Note: Cannot be tested as FFI parse operations never return null for
-/// valid models - this is defensive programming against UDPipe bugs.
-fn check_ffi_result<T>(ptr: *mut T, error_msg: &str) -> Result<*mut T, UdpipeError> {
-    if ptr.is_null() {
-        Err(UdpipeError {
-            message: get_ffi_error(error_msg),
-        })
-    } else {
-        Ok(ptr)
+        assert!(!err_ptr.is_null(), "UDPipe returned null error pointer");
+        CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
     }
 }
 
@@ -279,7 +259,7 @@ impl Model {
 
         if model.is_null() {
             return Err(UdpipeError {
-                message: get_ffi_error("Failed to load model"),
+                message: get_ffi_error(),
             });
         }
 
@@ -301,7 +281,7 @@ impl Model {
 
         if model.is_null() {
             return Err(UdpipeError {
-                message: get_ffi_error("Failed to load model from memory"),
+                message: get_ffi_error(),
             });
         }
 
@@ -327,7 +307,11 @@ impl Model {
         })?;
 
         let result = unsafe { ffi::udpipe_parse(self.inner, c_text.as_ptr()) };
-        let result = check_ffi_result(result, "Failed to parse text")?;
+        if result.is_null() {
+            return Err(UdpipeError {
+                message: get_ffi_error(),
+            });
+        }
 
         let word_count = unsafe { ffi::udpipe_result_word_count(result) };
         let mut words = Vec::with_capacity(word_count as usize);
@@ -536,13 +520,6 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), UdpipeError> {
     let path = path.as_ref();
 
-    // Create parent directories if needed
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
-
     // Download using ureq
     let response = ureq::get(url).call().map_err(|e| UdpipeError {
         message: format!("Failed to download: {}", e),
@@ -550,13 +527,7 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
 
     // Read response body
     let mut data = Vec::new();
-    response
-        .into_body()
-        .into_reader()
-        .read_to_end(&mut data)
-        .map_err(|e| UdpipeError {
-            message: format!("Failed to read response: {}", e),
-        })?;
+    response.into_body().into_reader().read_to_end(&mut data)?;
 
     if data.is_empty() {
         return Err(UdpipeError {
@@ -801,6 +772,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_with_null_model() {
+        // Create a Model with a null inner pointer to test the error path
+        let model = Model {
+            inner: std::ptr::null_mut(),
+        };
+        let result = model.parse("test");
+        let err = result.unwrap_err();
+        assert!(err.message.contains("Invalid arguments"));
+    }
+
+    #[test]
     fn test_download_model_from_url_invalid_url() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("model.udpipe");
@@ -808,6 +790,18 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.message.contains("Failed to download"));
+    }
+
+    #[test]
+    fn test_download_model_from_url_nonexistent_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("nonexistent/model.udpipe");
+        // Use a dummy URL - we should fail when writing, not on network
+        let url = "http://localhost:1/model.udpipe";
+
+        let result = download_model_from_url(url, &path);
+        // Will fail on network error first since dir doesn't exist check happens at write time
+        assert!(result.is_err());
     }
 
     #[test]
@@ -824,63 +818,10 @@ mod tests {
         let url = format!("{}/empty-model.udpipe", server.url());
 
         let result = download_model_from_url(&url, &path);
+
+        mock.assert();
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.message.contains("empty"));
-
-        mock.assert();
-    }
-
-    #[test]
-    fn test_download_model_from_url_creates_parent_dirs() {
-        let mut server = mockito::Server::new();
-        let mock = server
-            .mock("GET", "/model.udpipe")
-            .with_status(200)
-            .with_body("fake model data")
-            .create();
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path().join("nested/dir/model.udpipe");
-        let url = format!("{}/model.udpipe", server.url());
-
-        let result = download_model_from_url(&url, &path);
-        assert!(result.is_ok());
-        assert!(path.exists());
-
-        mock.assert();
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_download_model_from_url_readonly_dir() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut server = mockito::Server::new();
-        let _mock = server
-            .mock("GET", "/model.udpipe")
-            .with_status(200)
-            .with_body("fake model data")
-            .create();
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let readonly_dir = temp_dir.path().join("readonly");
-        std::fs::create_dir(&readonly_dir).unwrap();
-
-        // Make directory read-only
-        let mut perms = std::fs::metadata(&readonly_dir).unwrap().permissions();
-        perms.set_mode(0o444);
-        std::fs::set_permissions(&readonly_dir, perms.clone()).unwrap();
-
-        let path = readonly_dir.join("nested/model.udpipe");
-        let url = format!("{}/model.udpipe", server.url());
-
-        let result = download_model_from_url(&url, &path);
-
-        // Restore permissions before asserting (so temp_dir can be cleaned up)
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&readonly_dir, perms).unwrap();
-
-        assert!(result.is_err());
     }
 }

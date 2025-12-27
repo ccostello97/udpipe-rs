@@ -1,7 +1,5 @@
 # udpipe-rs
 
-This is a test
-
 [![Crates.io][crates-badge]][crates-url]
 [![Downloads][downloads-badge]][crates-url]
 [![Documentation][docs-badge]][docs-url]
