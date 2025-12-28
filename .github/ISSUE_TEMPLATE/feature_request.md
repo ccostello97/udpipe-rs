@@ -21,5 +21,3 @@ Any alternative solutions or workarounds you've considered.
 ## Additional Context
 
 Any other context, examples, or references that would help.
-
-

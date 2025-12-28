@@ -1,6 +1,7 @@
 //! Integration tests for udpipe.
 //!
-//! These tests download a fresh model each run to fully test the download + parse flow.
+//! These tests download a fresh model each run to fully test the download +
+//! parse flow.
 
 use std::sync::OnceLock;
 

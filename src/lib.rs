@@ -9,8 +9,8 @@
 //! use udpipe_rs::Model;
 //!
 //! // Download a model by language (one-time setup)
-//! let model_path = udpipe_rs::download_model("english-ewt", ".")
-//!     .expect("Failed to download model");
+//! let model_path =
+//!     udpipe_rs::download_model("english-ewt", ".").expect("Failed to download model");
 //!
 //! // Load and use the model
 //! let model = Model::load(&model_path).expect("Failed to load model");
@@ -170,8 +170,9 @@ impl Word {
 
     /// Returns true if there's a space after this word.
     ///
-    /// In CoNLL-U format, `SpaceAfter=No` is only present when there's no space.
-    /// This returns `true` (the default) when that annotation is absent.
+    /// In CoNLL-U format, `SpaceAfter=No` is only present when there's no
+    /// space. This returns `true` (the default) when that annotation is
+    /// absent.
     #[must_use]
     pub fn space_after(&self) -> bool {
         !self.misc.contains("SpaceAfter=No")
@@ -253,7 +254,8 @@ impl Model {
     ///
     /// # Errors
     ///
-    /// Returns an error if the path contains a null byte or if the model cannot be loaded.
+    /// Returns an error if the path contains a null byte or if the model cannot
+    /// be loaded.
     ///
     /// # Example
     /// ```no_run
@@ -288,7 +290,8 @@ impl Model {
     /// # Example
     /// ```no_run
     /// use udpipe_rs::Model;
-    /// let model_data = std::fs::read("english-ewt-ud-2.5-191206.udpipe").expect("Failed to read model");
+    /// let model_data =
+    ///     std::fs::read("english-ewt-ud-2.5-191206.udpipe").expect("Failed to read model");
     /// let model = Model::load_from_memory(&model_data).expect("Failed to load model");
     /// ```
     pub fn load_from_memory(data: &[u8]) -> Result<Self, UdpipeError> {
@@ -315,7 +318,9 @@ impl Model {
     /// ```no_run
     /// use udpipe_rs::Model;
     /// let model = Model::load("english-ewt-ud-2.5-191206.udpipe").expect("Failed to load");
-    /// let words = model.parse("The quick brown fox.").expect("Failed to parse");
+    /// let words = model
+    ///     .parse("The quick brown fox.")
+    ///     .expect("Failed to parse");
     /// for word in words {
     ///     println!("{} -> {} ({})", word.form, word.lemma, word.upostag);
     /// }
@@ -477,22 +482,24 @@ pub const AVAILABLE_MODELS: &[&str] = &[
 /// Download a pre-trained model by language identifier.
 ///
 /// Downloads a model from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131)
-/// to the specified destination directory. Returns the path to the downloaded model file.
+/// to the specified destination directory. Returns the path to the downloaded
+/// model file.
 ///
 /// # Arguments
 ///
-/// * `language` - Language identifier (e.g., "english-ewt", "dutch-alpino", "german-gsd").
-///   See [`AVAILABLE_MODELS`] for the full list.
+/// * `language` - Language identifier (e.g., "english-ewt", "dutch-alpino",
+///   "german-gsd"). See [`AVAILABLE_MODELS`] for the full list.
 /// * `dest_dir` - Directory where the model will be saved.
 ///
 /// # Errors
 ///
-/// Returns an error if the language is not in [`AVAILABLE_MODELS`] or if the download fails.
+/// Returns an error if the language is not in [`AVAILABLE_MODELS`] or if the
+/// download fails.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use udpipe_rs::{download_model, Model};
+/// use udpipe_rs::{Model, download_model};
 ///
 /// // Download English model to current directory
 /// let model_path = download_model("english-ewt", ".").expect("Failed to download");
@@ -533,7 +540,8 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 ///
 /// # Errors
 ///
-/// Returns an error if the download fails, the response is empty, or the file cannot be written.
+/// Returns an error if the download fails, the response is empty, or the file
+/// cannot be written.
 ///
 /// # Example
 ///
@@ -543,7 +551,8 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 /// download_model_from_url(
 ///     "https://example.com/custom-model.udpipe",
 ///     "custom-model.udpipe",
-/// ).expect("Failed to download");
+/// )
+/// .expect("Failed to download");
 /// ```
 pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), UdpipeError> {
     let path = path.as_ref();
@@ -572,7 +581,10 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
 /// # Example
 ///
 /// ```
-/// assert_eq!(udpipe_rs::model_filename("english-ewt"), "english-ewt-ud-2.5-191206.udpipe");
+/// assert_eq!(
+///     udpipe_rs::model_filename("english-ewt"),
+///     "english-ewt-ud-2.5-191206.udpipe"
+/// );
 /// ```
 #[must_use]
 pub fn model_filename(language: &str) -> String {
@@ -837,7 +849,8 @@ mod tests {
         let url = "http://localhost:1/model.udpipe";
 
         let result = download_model_from_url(url, &path);
-        // Will fail on network error first since dir doesn't exist check happens at write time
+        // Will fail on network error first since dir doesn't exist check happens at
+        // write time
         assert!(result.is_err());
     }
 

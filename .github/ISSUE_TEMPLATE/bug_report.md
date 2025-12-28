@@ -26,12 +26,10 @@ What actually happened.
 
 ## Environment
 
-- **udpipe-rs version**: 
+- **udpipe-rs version**:
 - **Rust version**: (output of `rustc --version`)
-- **OS**: 
+- **OS**:
 
 ## Additional Context
 
 Any other relevant information (error messages, stack traces, etc.)
-
-

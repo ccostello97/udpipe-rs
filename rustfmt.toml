@@ -1,3 +1,11 @@
-edition = "2024"
-max_width = 100
-use_small_heuristics = "Default"
+edition = "2024"                   # Rust edition for parsing
+max_width = 100                    # Maximum line width
+use_small_heuristics = "Default"   # Width heuristics for items
+newline_style = "Unix"             # Force LF line endings
+reorder_imports = true             # Sort imports alphabetically
+reorder_modules = true             # Sort mod declarations
+format_code_in_doc_comments = true # Format code blocks in docs (unstable)
+imports_granularity = "Module"     # Merge imports by module (unstable)
+group_imports = "StdExternalCrate" # Group: std, external, crate (unstable)
+wrap_comments = true               # Wrap long comments (unstable)
+normalize_doc_attributes = true    # #[doc = "..."] → /// (unstable)

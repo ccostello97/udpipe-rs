@@ -1,4 +1,4 @@
-## Summary
+# Summary
 
 Brief description of the changes.
 
@@ -13,5 +13,3 @@ Fixes #
 - [ ] Lints pass (`cargo clippy`)
 - [ ] Code is formatted (`cargo fmt`)
 - [ ] Documentation updated (if applicable)
-
-
