@@ -8,6 +8,12 @@
 //! cargo run --example download_model -- french-gsd ./models
 //! ```
 
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "examples use stdout/stderr for user output"
+)]
+
 use std::env;
 use std::path::Path;
 

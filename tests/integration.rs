@@ -3,6 +3,11 @@
 //! These tests download a fresh model each run to fully test the download +
 //! parse flow.
 
+#![allow(
+    clippy::print_stderr,
+    reason = "tests use stderr for diagnostic output"
+)]
+
 use std::sync::OnceLock;
 
 const MODEL_LANGUAGE: &str = "english-ewt";
