@@ -1,3 +1,5 @@
+//! Build script for compiling `UDPipe` C++ library.
+
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -89,8 +91,8 @@ fn collect_sources(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn collect_sources_recursive(dir: &Path, sources: &mut Vec<PathBuf>) {
-    let entries =
-        fs::read_dir(dir).unwrap_or_else(|e| panic!("Failed to read directory {:?}: {}", dir, e));
+    let entries = fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("Failed to read directory {}: {e}", dir.display()));
 
     for entry in entries {
         let entry = entry.expect("Failed to read directory entry");

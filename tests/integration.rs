@@ -13,10 +13,7 @@ fn get_model() -> &'static udpipe_rs::Model {
         .get_or_init(|| {
             let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
 
-            eprintln!(
-                "Downloading {} model for integration tests...",
-                MODEL_LANGUAGE
-            );
+            eprintln!("Downloading {MODEL_LANGUAGE} model for integration tests...");
             let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
                 .expect("Failed to download model for integration tests");
 

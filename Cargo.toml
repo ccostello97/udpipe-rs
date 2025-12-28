@@ -7,9 +7,34 @@ authors = ["Christopher Costello"]
 description = "Rust bindings for UDPipe - a trainable pipeline for tokenization, tagging, lemmatization and dependency parsing of CoNLL-U files"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ccostello97/udpipe-rs"
+documentation = "https://docs.rs/udpipe-rs"
 keywords = ["nlp", "parsing", "udpipe", "dependency-parsing", "pos-tagging"]
 categories = ["text-processing", "science"]
 readme = "README.md"
+
+[lints.rust]
+# Groups (priority -1 so individual lints can override)
+rust_2024_compatibility = { level = "deny", priority = -1 }
+future_incompatible = { level = "deny", priority = -1 }
+nonstandard_style = { level = "deny", priority = -1 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+# Individual lints
+unsafe_code = "allow"                  # Required for FFI bindings
+missing_docs = "deny"
+missing_debug_implementations = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unused_lifetimes = "deny"
+unused_qualifications = "deny"
+
+[lints.clippy]
+# Groups (priority -1 so individual lints can override)
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+# Note: `restriction` is NOT included - it contains mutually exclusive lints
+# meant to be cherry-picked, not enabled wholesale
 
 [build-dependencies]
 cc = "1.2.51"
