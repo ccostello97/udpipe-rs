@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/ccostello97/udpipe-rs/compare/v0.1.7...v0.1.8) (2025-12-28)
+
+
+### Bug Fixes
+
+* improve linter compliance ([c03a568](https://github.com/ccostello97/udpipe-rs/commit/c03a56800e86d910341e4c8f947f4f9966497226))
+
 ## [0.1.7](https://github.com/ccostello97/udpipe-rs/compare/v0.1.6...v0.1.7) (2025-12-28)
 
 
