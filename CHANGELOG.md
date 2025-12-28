@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/ccostello97/udpipe-rs/compare/v0.1.5...v0.1.6) (2025-12-28)
+
+
+### Bug Fixes
+
+* stream model downloads directly to disk instead of buffering in memory ([896207e](https://github.com/ccostello97/udpipe-rs/commit/896207e4285e8b178f59395b538865b1f7967c41))
+
 ## [0.1.5](https://github.com/ccostello97/udpipe-rs/compare/v0.1.4...v0.1.5) (2025-12-28)
 
 
