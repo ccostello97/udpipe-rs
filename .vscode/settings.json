@@ -1,11 +1,9 @@
 {
-  // Rust
-  "rust-analyzer.check.command": "clippy",
-  "rust-analyzer.cargo.features": "all",
-  "rust-analyzer.imports.granularity.group": "module",
-  "rust-analyzer.imports.prefix": "crate",
+  // Editor - global behavior
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
 
-  // Editor
+  // Language-specific formatting
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true,
@@ -24,16 +22,21 @@
     "editor.formatOnSave": true
   },
 
-  // Markdownlint
-  "markdownlint.configFile": ".markdownlint.json",
+  // Rust Analyzer
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.imports.granularity.group": "module",
+  "rust-analyzer.imports.prefix": "crate",
 
-  // Files
-  "files.associations": {
-    "LICENSE-*": "plaintext"
-  },
+  // Explorer
   "files.exclude": {
     "target": true
   },
+  "files.associations": {
+    "LICENSE-*": "plaintext"
+  },
+
+  // Performance
   "files.watcherExclude": {
     "**/target/**": true
   }

@@ -9,8 +9,8 @@
 //! use udpipe_rs::Model;
 //!
 //! // Download a model by language (one-time setup)
-//! let model_path = udpipe_rs::download_model("english-ewt", ".")
-//!     .expect("Failed to download model");
+//! let model_path =
+//!     udpipe_rs::download_model("english-ewt", ".").expect("Failed to download model");
 //!
 //! // Load and use the model
 //! let model = Model::load(&model_path).expect("Failed to load model");
@@ -170,62 +170,88 @@ impl Word {
 
     /// Returns true if there's a space after this word.
     ///
-    /// In CoNLL-U format, `SpaceAfter=No` is only present when there's no space.
-    /// This returns `true` (the default) when that annotation is absent.
+    /// In CoNLL-U format, `SpaceAfter=No` is only present when there's no
+    /// space. This returns `true` (the default) when that annotation is
+    /// absent.
     #[must_use]
     pub fn space_after(&self) -> bool {
         !self.misc.contains("SpaceAfter=No")
     }
 }
 
-// FFI declarations
+/// FFI declarations for the `UDPipe` C++ wrapper.
 mod ffi {
     use std::os::raw::c_char;
 
+    /// Opaque handle to a loaded `UDPipe` model.
     #[repr(C)]
     pub struct UdpipeModel {
+        /// Zero-sized field to make the struct opaque.
         _private: [u8; 0],
     }
 
+    /// Opaque handle to a parse result.
     #[repr(C)]
     pub struct UdpipeParseResult {
+        /// Zero-sized field to make the struct opaque.
         _private: [u8; 0],
     }
 
+    /// A single word from a parse result.
     #[repr(C)]
     pub struct UdpipeWord {
+        /// The word form (surface text).
         pub form: *const c_char,
+        /// The lemma.
         pub lemma: *const c_char,
+        /// Universal POS tag.
         pub upostag: *const c_char,
+        /// Language-specific POS tag.
         pub xpostag: *const c_char,
+        /// Morphological features.
         pub feats: *const c_char,
+        /// Dependency relation.
         pub deprel: *const c_char,
+        /// Miscellaneous annotations.
         pub misc: *const c_char,
+        /// Word ID (1-indexed within sentence).
         pub id: i32,
+        /// Head word ID (0 for root).
         pub head: i32,
+        /// Sentence ID (0-indexed).
         pub sentence_id: i32,
     }
 
     unsafe extern "C" {
+        /// Load a model from a file path.
         pub fn udpipe_model_load(model_path: *const c_char) -> *mut UdpipeModel;
+        /// Load a model from memory.
         pub fn udpipe_model_load_from_memory(data: *const u8, len: usize) -> *mut UdpipeModel;
+        /// Free a loaded model.
         pub fn udpipe_model_free(model: *mut UdpipeModel);
+        /// Parse text and return a result handle.
         pub fn udpipe_parse(model: *mut UdpipeModel, text: *const c_char)
         -> *mut UdpipeParseResult;
+        /// Free a parse result.
         pub fn udpipe_result_free(result: *mut UdpipeParseResult);
+        /// Get the last error message.
         pub fn udpipe_get_error() -> *const c_char;
+        /// Get the word count in a parse result.
         pub fn udpipe_result_word_count(result: *mut UdpipeParseResult) -> i32;
+        /// Get a word by index from a parse result.
         pub fn udpipe_result_get_word(result: *mut UdpipeParseResult, index: i32) -> UdpipeWord;
     }
 }
 
 /// Get the last error from the FFI layer.
 fn get_ffi_error() -> String {
-    unsafe {
-        let err_ptr = ffi::udpipe_get_error();
-        assert!(!err_ptr.is_null(), "UDPipe returned null error pointer");
-        CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
-    }
+    // SAFETY: `udpipe_get_error` returns a pointer to a static thread-local buffer.
+    let err_ptr = unsafe { ffi::udpipe_get_error() };
+    assert!(!err_ptr.is_null(), "UDPipe returned null error pointer");
+    // SAFETY: The pointer is valid and points to a null-terminated C string.
+    unsafe { CStr::from_ptr(err_ptr) }
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// `UDPipe` model wrapper.
@@ -233,6 +259,7 @@ fn get_ffi_error() -> String {
 /// This is the main type for loading and using `UDPipe` models.
 /// Models can be loaded from files or from memory.
 pub struct Model {
+    /// Raw pointer to the underlying `UDPipe` model.
     inner: *mut ffi::UdpipeModel,
 }
 
@@ -244,8 +271,10 @@ impl std::fmt::Debug for Model {
     }
 }
 
-// SAFETY: The UDPipe model is thread-safe for parsing
+// SAFETY: The underlying UDPipe model is thread-safe for send operations.
 unsafe impl Send for Model {}
+// SAFETY: The underlying UDPipe model uses internal synchronization for
+// concurrent access.
 unsafe impl Sync for Model {}
 
 impl Model {
@@ -253,7 +282,8 @@ impl Model {
     ///
     /// # Errors
     ///
-    /// Returns an error if the path contains a null byte or if the model cannot be loaded.
+    /// Returns an error if the path contains a null byte or if the model cannot
+    /// be loaded.
     ///
     /// # Example
     /// ```no_run
@@ -263,9 +293,10 @@ impl Model {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, UdpipeError> {
         let path_str = path.as_ref().to_string_lossy();
         let c_path = CString::new(path_str.as_bytes()).map_err(|_| UdpipeError {
-            message: "Invalid path (contains null byte)".to_string(),
+            message: "Invalid path (contains null byte)".to_owned(),
         })?;
 
+        // SAFETY: `c_path` is a valid null-terminated C string.
         let model = unsafe { ffi::udpipe_model_load(c_path.as_ptr()) };
 
         if model.is_null() {
@@ -288,10 +319,12 @@ impl Model {
     /// # Example
     /// ```no_run
     /// use udpipe_rs::Model;
-    /// let model_data = std::fs::read("english-ewt-ud-2.5-191206.udpipe").expect("Failed to read model");
+    /// let model_data =
+    ///     std::fs::read("english-ewt-ud-2.5-191206.udpipe").expect("Failed to read model");
     /// let model = Model::load_from_memory(&model_data).expect("Failed to load model");
     /// ```
     pub fn load_from_memory(data: &[u8]) -> Result<Self, UdpipeError> {
+        // SAFETY: `data` is a valid slice; pointer and length are derived from it.
         let model = unsafe { ffi::udpipe_model_load_from_memory(data.as_ptr(), data.len()) };
 
         if model.is_null() {
@@ -315,16 +348,20 @@ impl Model {
     /// ```no_run
     /// use udpipe_rs::Model;
     /// let model = Model::load("english-ewt-ud-2.5-191206.udpipe").expect("Failed to load");
-    /// let words = model.parse("The quick brown fox.").expect("Failed to parse");
+    /// let words = model
+    ///     .parse("The quick brown fox.")
+    ///     .expect("Failed to parse");
     /// for word in words {
     ///     println!("{} -> {} ({})", word.form, word.lemma, word.upostag);
     /// }
     /// ```
     pub fn parse(&self, text: &str) -> Result<Vec<Word>, UdpipeError> {
         let c_text = CString::new(text).map_err(|_| UdpipeError {
-            message: "Invalid text (contains null byte)".to_string(),
+            message: "Invalid text (contains null byte)".to_owned(),
         })?;
 
+        // SAFETY: `self.inner` is valid and `c_text` is a valid null-terminated C
+        // string.
         let result = unsafe { ffi::udpipe_parse(self.inner, c_text.as_ptr()) };
         if result.is_null() {
             return Err(UdpipeError {
@@ -332,35 +369,50 @@ impl Model {
             });
         }
 
+        // SAFETY: `result` is a valid parse result pointer.
         let word_count = unsafe { ffi::udpipe_result_word_count(result) };
         let capacity = usize::try_from(word_count).unwrap_or(0);
         let mut words = Vec::with_capacity(capacity);
 
         for i in 0..word_count {
+            // SAFETY: `result` is valid and `i` is within bounds.
             let word = unsafe { ffi::udpipe_result_get_word(result, i) };
             words.push(Word {
-                form: unsafe { CStr::from_ptr(word.form).to_string_lossy().into_owned() },
-                lemma: unsafe { CStr::from_ptr(word.lemma).to_string_lossy().into_owned() },
-                upostag: unsafe { CStr::from_ptr(word.upostag).to_string_lossy().into_owned() },
-                xpostag: unsafe { CStr::from_ptr(word.xpostag).to_string_lossy().into_owned() },
-                feats: unsafe { CStr::from_ptr(word.feats).to_string_lossy().into_owned() },
-                deprel: unsafe { CStr::from_ptr(word.deprel).to_string_lossy().into_owned() },
-                misc: unsafe { CStr::from_ptr(word.misc).to_string_lossy().into_owned() },
+                form: ptr_to_string(word.form),
+                lemma: ptr_to_string(word.lemma),
+                upostag: ptr_to_string(word.upostag),
+                xpostag: ptr_to_string(word.xpostag),
+                feats: ptr_to_string(word.feats),
+                deprel: ptr_to_string(word.deprel),
+                misc: ptr_to_string(word.misc),
                 id: word.id,
                 head: word.head,
                 sentence_id: word.sentence_id,
             });
         }
 
+        // SAFETY: `result` is a valid pointer that we own.
         unsafe { ffi::udpipe_result_free(result) };
 
         Ok(words)
     }
 }
 
+/// Convert a C string pointer to an owned `String`.
+///
+/// # Safety
+/// The pointer must be valid and point to a null-terminated C string.
+fn ptr_to_string(ptr: *const std::os::raw::c_char) -> String {
+    // SAFETY: FFI guarantees the pointer is valid and null-terminated.
+    unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned()
+}
+
 impl Drop for Model {
     fn drop(&mut self) {
         if !self.inner.is_null() {
+            // SAFETY: `self.inner` is valid and we have exclusive ownership.
             unsafe { ffi::udpipe_model_free(self.inner) };
         }
     }
@@ -477,22 +529,24 @@ pub const AVAILABLE_MODELS: &[&str] = &[
 /// Download a pre-trained model by language identifier.
 ///
 /// Downloads a model from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131)
-/// to the specified destination directory. Returns the path to the downloaded model file.
+/// to the specified destination directory. Returns the path to the downloaded
+/// model file.
 ///
 /// # Arguments
 ///
-/// * `language` - Language identifier (e.g., "english-ewt", "dutch-alpino", "german-gsd").
-///   See [`AVAILABLE_MODELS`] for the full list.
+/// * `language` - Language identifier (e.g., "english-ewt", "dutch-alpino",
+///   "german-gsd"). See [`AVAILABLE_MODELS`] for the full list.
 /// * `dest_dir` - Directory where the model will be saved.
 ///
 /// # Errors
 ///
-/// Returns an error if the language is not in [`AVAILABLE_MODELS`] or if the download fails.
+/// Returns an error if the language is not in [`AVAILABLE_MODELS`] or if the
+/// download fails.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use udpipe_rs::{download_model, Model};
+/// use udpipe_rs::{Model, download_model};
 ///
 /// // Download English model to current directory
 /// let model_path = download_model("english-ewt", ".").expect("Failed to download");
@@ -533,7 +587,8 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 ///
 /// # Errors
 ///
-/// Returns an error if the download fails, the response is empty, or the file cannot be written.
+/// Returns an error if the download fails, the response is empty, or the file
+/// cannot be written.
 ///
 /// # Example
 ///
@@ -543,7 +598,8 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 /// download_model_from_url(
 ///     "https://example.com/custom-model.udpipe",
 ///     "custom-model.udpipe",
-/// ).expect("Failed to download");
+/// )
+/// .expect("Failed to download");
 /// ```
 pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), UdpipeError> {
     let path = path.as_ref();
@@ -560,7 +616,7 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
 
     if bytes_written == 0 {
         return Err(UdpipeError {
-            message: "Downloaded file is empty".to_string(),
+            message: "Downloaded file is empty".to_owned(),
         });
     }
 
@@ -572,7 +628,10 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
 /// # Example
 ///
 /// ```
-/// assert_eq!(udpipe_rs::model_filename("english-ewt"), "english-ewt-ud-2.5-191206.udpipe");
+/// assert_eq!(
+///     udpipe_rs::model_filename("english-ewt"),
+///     "english-ewt-ud-2.5-191206.udpipe"
+/// );
 /// ```
 #[must_use]
 pub fn model_filename(language: &str) -> String {
@@ -585,12 +644,12 @@ mod tests {
 
     fn make_word(feats: &str) -> Word {
         Word {
-            form: "test".to_string(),
-            lemma: "test".to_string(),
-            upostag: "NOUN".to_string(),
+            form: "test".to_owned(),
+            lemma: "test".to_owned(),
+            upostag: "NOUN".to_owned(),
             xpostag: String::new(),
-            feats: feats.to_string(),
-            deprel: "root".to_string(),
+            feats: feats.to_owned(),
+            deprel: "root".to_owned(),
             misc: String::new(),
             id: 1,
             head: 0,
@@ -646,56 +705,56 @@ mod tests {
     #[test]
     fn test_word_is_verb() {
         let mut word = make_word("");
-        word.upostag = "VERB".to_string();
+        word.upostag = "VERB".to_owned();
         assert!(word.is_verb());
 
-        word.upostag = "AUX".to_string();
+        word.upostag = "AUX".to_owned();
         assert!(word.is_verb());
 
-        word.upostag = "NOUN".to_string();
+        word.upostag = "NOUN".to_owned();
         assert!(!word.is_verb());
     }
 
     #[test]
     fn test_word_is_noun() {
         let mut word = make_word("");
-        word.upostag = "NOUN".to_string();
+        word.upostag = "NOUN".to_owned();
         assert!(word.is_noun());
 
-        word.upostag = "PROPN".to_string();
+        word.upostag = "PROPN".to_owned();
         assert!(word.is_noun());
 
-        word.upostag = "VERB".to_string();
+        word.upostag = "VERB".to_owned();
         assert!(!word.is_noun());
     }
 
     #[test]
     fn test_word_is_root() {
         let mut word = make_word("");
-        word.deprel = "root".to_string();
+        word.deprel = "root".to_owned();
         assert!(word.is_root());
 
-        word.deprel = "nsubj".to_string();
+        word.deprel = "nsubj".to_owned();
         assert!(!word.is_root());
     }
 
     #[test]
     fn test_word_is_adjective() {
         let mut word = make_word("");
-        word.upostag = "ADJ".to_string();
+        word.upostag = "ADJ".to_owned();
         assert!(word.is_adjective());
 
-        word.upostag = "NOUN".to_string();
+        word.upostag = "NOUN".to_owned();
         assert!(!word.is_adjective());
     }
 
     #[test]
     fn test_word_is_punct() {
         let mut word = make_word("");
-        word.upostag = "PUNCT".to_string();
+        word.upostag = "PUNCT".to_owned();
         assert!(word.is_punct());
 
-        word.upostag = "NOUN".to_string();
+        word.upostag = "NOUN".to_owned();
         assert!(!word.is_punct());
     }
 
@@ -765,10 +824,10 @@ mod tests {
         word.misc = String::new();
         assert!(word.space_after()); // default: has space
 
-        word.misc = "SpaceAfter=No".to_string();
+        word.misc = "SpaceAfter=No".to_owned();
         assert!(!word.space_after());
 
-        word.misc = "SpaceAfter=No|Other=Value".to_string();
+        word.misc = "SpaceAfter=No|Other=Value".to_owned();
         assert!(!word.space_after());
     }
 
@@ -837,7 +896,8 @@ mod tests {
         let url = "http://localhost:1/model.udpipe";
 
         let result = download_model_from_url(url, &path);
-        // Will fail on network error first since dir doesn't exist check happens at write time
+        // Will fail on network error first since dir doesn't exist check happens at
+        // write time
         assert!(result.is_err());
     }
 

@@ -1,6 +1,12 @@
 //! Integration tests for udpipe.
 //!
-//! These tests download a fresh model each run to fully test the download + parse flow.
+//! These tests download a fresh model each run to fully test the download +
+//! parse flow.
+
+#![allow(
+    clippy::print_stderr,
+    reason = "tests use stderr for diagnostic output"
+)]
 
 use std::sync::OnceLock;
 

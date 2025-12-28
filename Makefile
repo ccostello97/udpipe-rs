@@ -14,11 +14,11 @@ build-release: ## Build optimized release binary
 
 # === Formatting ===
 format-fix: ## Format code (Rust and C++)
-	cargo fmt
+	cargo +nightly fmt
 	clang-format -i src/*.{cpp,h}
 
 format-check: ## Check formatting (Rust and C++)
-	cargo fmt --check
+	cargo +nightly fmt --check
 	clang-format --dry-run --Werror src/*.{cpp,h}
 
 # === Linting ===

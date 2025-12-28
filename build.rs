@@ -1,15 +1,41 @@
 //! Build script for compiling `UDPipe` C++ library.
 
-use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let src_dir = manifest_dir.join("vendor/udpipe/src");
 
     // Collect all UDPipe C++ source files
-    let sources = collect_sources(&src_dir);
+    let mut sources = Vec::new();
+    let subdirs = [
+        "model",
+        "morphodita",
+        "parsito",
+        "sentence",
+        "unilib",
+        "tokenizer",
+        "trainer",
+        "utils",
+    ];
+
+    // Main source files
+    for entry in fs::read_dir(&src_dir).expect("Failed to read UDPipe src directory") {
+        let entry = entry.expect("Failed to read directory entry");
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "cpp") {
+            sources.push(path);
+        }
+    }
+
+    // Subdirectory source files
+    for subdir in &subdirs {
+        let subdir_path = src_dir.join(subdir);
+        if subdir_path.exists() {
+            collect_sources_recursive(&subdir_path, &mut sources);
+        }
+    }
 
     // Build UDPipe as a static library
     let mut build = cc::Build::new();
@@ -42,11 +68,10 @@ fn main() {
     let target = env::var("TARGET").unwrap();
     if target.contains("apple") {
         println!("cargo:rustc-link-lib=c++");
-    } else if target.contains("linux") {
-        println!("cargo:rustc-link-lib=stdc++");
     } else if target.contains("windows") && target.contains("msvc") {
         // MSVC links C++ runtime automatically
-    } else if target.contains("windows") {
+    } else {
+        // Linux, BSDs, Android, and other Unix-like systems use libstdc++
         println!("cargo:rustc-link-lib=stdc++");
     }
 
@@ -56,40 +81,7 @@ fn main() {
     println!("cargo:rerun-if-changed=vendor/udpipe/src");
 }
 
-fn collect_sources(dir: &Path) -> Vec<PathBuf> {
-    let mut sources = Vec::new();
-
-    let subdirs = [
-        "model",
-        "morphodita",
-        "parsito",
-        "sentence",
-        "unilib",
-        "tokenizer",
-        "trainer",
-        "utils",
-    ];
-
-    // Main source files
-    for entry in fs::read_dir(dir).expect("Failed to read UDPipe src directory") {
-        let entry = entry.expect("Failed to read directory entry");
-        let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "cpp") {
-            sources.push(path);
-        }
-    }
-
-    // Subdirectory source files
-    for subdir in &subdirs {
-        let subdir_path = dir.join(subdir);
-        if subdir_path.exists() {
-            collect_sources_recursive(&subdir_path, &mut sources);
-        }
-    }
-
-    sources
-}
-
+/// Recursively collects C++ source files from a directory.
 fn collect_sources_recursive(dir: &Path, sources: &mut Vec<PathBuf>) {
     let entries = fs::read_dir(dir)
         .unwrap_or_else(|e| panic!("Failed to read directory {}: {e}", dir.display()));

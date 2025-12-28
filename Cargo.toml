@@ -18,6 +18,7 @@ rust_2024_compatibility = { level = "deny", priority = -1 }
 future_incompatible = { level = "deny", priority = -1 }
 nonstandard_style = { level = "deny", priority = -1 }
 rust_2018_idioms = { level = "deny", priority = -1 }
+
 # Individual lints
 unsafe_code = "allow"                  # Required for FFI bindings
 missing_docs = "deny"
@@ -33,8 +34,22 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 cargo = { level = "deny", priority = -1 }
-# Note: `restriction` is NOT included - it contains mutually exclusive lints
-# meant to be cherry-picked, not enabled wholesale
+
+# Restriction lints (enabled individually instead of the full group)
+allow_attributes_without_reason = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+unimplemented = "deny"
+mem_forget = "deny"
+missing_docs_in_private_items = "deny"
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+str_to_string = "deny"
+implicit_clone = "deny"
+verbose_file_reads = "deny"
+single_call_fn = "deny"
+unseparated_literal_suffix = "deny"
 
 [build-dependencies]
 cc = "1.2.51"

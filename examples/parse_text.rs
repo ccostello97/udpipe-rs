@@ -8,6 +8,12 @@
 //! cargo run --example parse_text -- "Text" path/to/model.udpipe
 //! ```
 
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "examples use stdout/stderr for user output"
+)]
+
 use std::env;
 
 fn main() {

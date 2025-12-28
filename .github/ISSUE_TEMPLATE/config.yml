@@ -3,5 +3,3 @@ contact_links:
   - name: Documentation
     url: https://docs.rs/udpipe-rs
     about: Check the API documentation
-
-
