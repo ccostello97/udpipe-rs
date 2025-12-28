@@ -22,7 +22,8 @@
 //! ```
 
 use std::ffi::{CStr, CString};
-use std::io::Read;
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::Path;
 
 /// Base URL for the LINDAT/CLARIAH-CZ model repository (UD 2.5).
@@ -552,18 +553,16 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
         message: format!("Failed to download: {e}"),
     })?;
 
-    // Read response body
-    let mut data = Vec::new();
-    response.into_body().into_reader().read_to_end(&mut data)?;
+    // Stream response directly to file
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+    let bytes_written = std::io::copy(&mut response.into_body().into_reader(), &mut writer)?;
 
-    if data.is_empty() {
+    if bytes_written == 0 {
         return Err(UdpipeError {
             message: "Downloaded file is empty".to_string(),
         });
     }
-
-    // Write to file
-    std::fs::write(path, &data)?;
 
     Ok(())
 }
