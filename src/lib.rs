@@ -1,6 +1,6 @@
-//! Rust bindings for UDPipe - Universal Dependencies Pipeline.
+//! Rust bindings for `UDPipe` - Universal Dependencies Pipeline.
 //!
-//! UDPipe is a trainable pipeline for tokenization, tagging, lemmatization,
+//! `UDPipe` is a trainable pipeline for tokenization, tagging, lemmatization,
 //! and dependency parsing of CoNLL-U files.
 //!
 //! # Example
@@ -21,8 +21,6 @@
 //! }
 //! ```
 
-#![deny(missing_docs)]
-
 use std::ffi::{CStr, CString};
 use std::io::Read;
 use std::path::Path;
@@ -31,7 +29,7 @@ use std::path::Path;
 const MODEL_BASE_URL: &str =
     "https://lindat.mff.cuni.cz/repository/xmlui/bitstream/handle/11234/1-3131";
 
-/// Error type for UDPipe operations.
+/// Error type for `UDPipe` operations.
 #[derive(Debug, Clone)]
 pub struct UdpipeError {
     /// The error message.
@@ -63,7 +61,7 @@ impl From<std::io::Error> for UdpipeError {
     }
 }
 
-/// A parsed word from UDPipe with Universal Dependencies annotations.
+/// A parsed word from `UDPipe` with Universal Dependencies annotations.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Word {
     /// The surface form (actual text).
@@ -229,12 +227,20 @@ fn get_ffi_error() -> String {
     }
 }
 
-/// UDPipe model wrapper.
+/// `UDPipe` model wrapper.
 ///
-/// This is the main type for loading and using UDPipe models.
+/// This is the main type for loading and using `UDPipe` models.
 /// Models can be loaded from files or from memory.
 pub struct Model {
     inner: *mut ffi::UdpipeModel,
+}
+
+impl std::fmt::Debug for Model {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Model")
+            .field("inner", &(!self.inner.is_null()))
+            .finish()
+    }
 }
 
 // SAFETY: The UDPipe model is thread-safe for parsing
@@ -243,6 +249,10 @@ unsafe impl Sync for Model {}
 
 impl Model {
     /// Load a model from a file path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path contains a null byte or if the model cannot be loaded.
     ///
     /// # Example
     /// ```no_run
@@ -263,12 +273,16 @@ impl Model {
             });
         }
 
-        Ok(Model { inner: model })
+        Ok(Self { inner: model })
     }
 
     /// Load a model from a byte slice.
     ///
     /// This is useful for loading models from network sources or embedded data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is empty or not a valid `UDPipe` model.
     ///
     /// # Example
     /// ```no_run
@@ -285,12 +299,16 @@ impl Model {
             });
         }
 
-        Ok(Model { inner: model })
+        Ok(Self { inner: model })
     }
 
     /// Parse text and return all words with their UD annotations.
     ///
     /// The text is tokenized, tagged, lemmatized, and parsed for dependencies.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the text contains a null byte or if parsing fails.
     ///
     /// # Example
     /// ```no_run
@@ -314,7 +332,8 @@ impl Model {
         }
 
         let word_count = unsafe { ffi::udpipe_result_word_count(result) };
-        let mut words = Vec::with_capacity(word_count as usize);
+        let capacity = usize::try_from(word_count).unwrap_or(0);
+        let mut words = Vec::with_capacity(capacity);
 
         for i in 0..word_count {
             let word = unsafe { ffi::udpipe_result_get_word(result, i) };
@@ -465,6 +484,10 @@ pub const AVAILABLE_MODELS: &[&str] = &[
 ///   See [`AVAILABLE_MODELS`] for the full list.
 /// * `dest_dir` - Directory where the model will be saved.
 ///
+/// # Errors
+///
+/// Returns an error if the language is not in [`AVAILABLE_MODELS`] or if the download fails.
+///
 /// # Example
 ///
 /// ```no_run
@@ -494,7 +517,7 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
     // Construct filename and URL
     let filename = model_filename(language);
     let dest_path = dest_dir.join(&filename);
-    let url = format!("{}/{}", MODEL_BASE_URL, filename);
+    let url = format!("{MODEL_BASE_URL}/{filename}");
 
     // Download using the generic download function
     download_model_from_url(&url, &dest_path)?;
@@ -506,6 +529,10 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 ///
 /// Use this if you need to download models from a different source or version.
 /// For standard models, prefer [`download_model`].
+///
+/// # Errors
+///
+/// Returns an error if the download fails, the response is empty, or the file cannot be written.
 ///
 /// # Example
 ///
@@ -522,7 +549,7 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
 
     // Download using ureq
     let response = ureq::get(url).call().map_err(|e| UdpipeError {
-        message: format!("Failed to download: {}", e),
+        message: format!("Failed to download: {e}"),
     })?;
 
     // Read response body
@@ -548,8 +575,9 @@ pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), 
 /// ```
 /// assert_eq!(udpipe_rs::model_filename("english-ewt"), "english-ewt-ud-2.5-191206.udpipe");
 /// ```
+#[must_use]
 pub fn model_filename(language: &str) -> String {
-    format!("{}-ud-2.5-191206.udpipe", language)
+    format!("{language}-ud-2.5-191206.udpipe")
 }
 
 #[cfg(test)]
@@ -679,7 +707,7 @@ mod tests {
         let word1 = make_word("Mood=Imp");
         let word2 = make_word("Mood=Imp");
         let mut set = HashSet::new();
-        set.insert(word1.clone());
+        set.insert(word1);
         assert!(set.contains(&word2));
     }
 
@@ -707,7 +735,7 @@ mod tests {
     fn test_available_models_sorted() {
         // Verify the list is sorted for binary search if needed later
         let mut sorted = AVAILABLE_MODELS.to_vec();
-        sorted.sort();
+        sorted.sort_unstable();
         assert_eq!(AVAILABLE_MODELS, sorted.as_slice());
     }
 
@@ -722,7 +750,7 @@ mod tests {
     #[test]
     fn test_udpipe_error_display() {
         let err = UdpipeError::new("test error");
-        assert_eq!(format!("{}", err), "UDPipe error: test error");
+        assert_eq!(format!("{err}"), "UDPipe error: test error");
     }
 
     #[test]
@@ -754,7 +782,7 @@ mod tests {
     #[test]
     fn test_model_load_path_with_null_byte() {
         let result = Model::load("path\0with\0nulls.udpipe");
-        let err = result.err().expect("expected error");
+        let err = result.expect_err("expected error");
         assert!(err.message.contains("null byte"));
     }
 
@@ -783,6 +811,16 @@ mod tests {
     }
 
     #[test]
+    fn test_model_debug() {
+        let model = Model {
+            inner: std::ptr::null_mut(),
+        };
+        let debug_str = format!("{model:?}");
+        assert!(debug_str.contains("Model"));
+        assert!(debug_str.contains("inner"));
+    }
+
+    #[test]
     fn test_download_model_from_url_invalid_url() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("model.udpipe");
@@ -806,20 +844,21 @@ mod tests {
 
     #[test]
     fn test_download_model_from_url_empty_response() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("model.udpipe");
+
         let mut server = mockito::Server::new();
         let mock = server
             .mock("GET", "/empty-model.udpipe")
             .with_status(200)
             .with_body("")
             .create();
+        let full_url = format!("{}/empty-model.udpipe", server.url());
 
-        let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path().join("model.udpipe");
-        let url = format!("{}/empty-model.udpipe", server.url());
-
-        let result = download_model_from_url(&url, &path);
-
+        let result = download_model_from_url(&full_url, &path);
         mock.assert();
+        drop(server);
+
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.message.contains("empty"));

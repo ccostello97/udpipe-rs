@@ -1,0 +1,3 @@
+-xc++
+-std=c++11
+-Ivendor/udpipe/src

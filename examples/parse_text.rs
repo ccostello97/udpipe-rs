@@ -1,30 +1,32 @@
-//! Example: Parse text with UDPipe.
+//! Example: Parse text with `UDPipe`.
 //!
 //! Usage:
-//!   cargo run --example parse_text
-//!   cargo run --example parse_text -- "Your custom text here."
-//!   cargo run --example parse_text -- "Text" path/to/model.udpipe
+//!
+//! ```shell
+//! cargo run --example parse_text
+//! cargo run --example parse_text -- "Your custom text here."
+//! cargo run --example parse_text -- "Text" path/to/model.udpipe
+//! ```
 
 use std::env;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let text = args
-        .get(1)
-        .map(|s| s.as_str())
-        .unwrap_or("The quick brown fox jumps over the lazy dog.");
+    let text = args.get(1).map_or(
+        "The quick brown fox jumps over the lazy dog.",
+        String::as_str,
+    );
 
     let model_path = args
         .get(2)
-        .map(|s| s.as_str())
-        .unwrap_or("english-ewt-ud-2.5-191206.udpipe");
+        .map_or("english-ewt-ud-2.5-191206.udpipe", String::as_str);
 
-    println!("Loading model from: {}", model_path);
+    println!("Loading model from: {model_path}");
     let model = match udpipe_rs::Model::load(model_path) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("Failed to load model: {}", e);
+            eprintln!("Failed to load model: {e}");
             eprintln!();
             eprintln!("Download a model first with:");
             eprintln!("  cargo run --example download_model");
@@ -32,7 +34,7 @@ fn main() {
         }
     };
 
-    println!("Parsing: {}", text);
+    println!("Parsing: {text}");
     println!();
 
     let words = model.parse(text).expect("Failed to parse");
@@ -69,6 +71,6 @@ fn main() {
     println!("Total words: {}", words.len());
     println!(
         "Sentences: {}",
-        words.last().map(|w| w.sentence_id + 1).unwrap_or(0)
+        words.last().map_or(0, |w| w.sentence_id + 1)
     );
 }
