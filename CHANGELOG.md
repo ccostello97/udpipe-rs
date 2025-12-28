@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/ccostello97/udpipe-rs/compare/v0.1.6...v0.1.7) (2025-12-28)
+
+
+### Bug Fixes
+
+* add clang-format and clang-tidy linting for C++ code ([8147ca4](https://github.com/ccostello97/udpipe-rs/commit/8147ca40bd905d5b60ea62fe07a78144b32abb46))
+
 ## [0.1.6](https://github.com/ccostello97/udpipe-rs/compare/v0.1.5...v0.1.6) (2025-12-28)
 
 
