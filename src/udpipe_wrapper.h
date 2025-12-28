@@ -1,19 +1,19 @@
 #ifndef UDPIPE_WRAPPER_H
 #define UDPIPE_WRAPPER_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Opaque types
-typedef struct UdpipeModel UdpipeModel;
-typedef struct UdpipeParseResult UdpipeParseResult;
+using UdpipeModel = struct UdpipeModel;
+using UdpipeParseResult = struct UdpipeParseResult;
 
 // Word structure with Universal Dependencies annotations
-typedef struct {
+using UdpipeWord = struct {
   const char *form;    // Surface form
   const char *lemma;   // Lemma (dictionary form)
   const char *upostag; // Universal POS tag
@@ -24,23 +24,23 @@ typedef struct {
   int32_t id;          // 1-based word index within sentence
   int32_t head;        // Head word index (0 = root)
   int32_t sentence_id; // 0-based sentence index
-} UdpipeWord;
+};
 
 // Model functions
-UdpipeModel *udpipe_model_load(const char *model_path);
-UdpipeModel *udpipe_model_load_from_memory(const uint8_t *data, size_t len);
+auto udpipe_model_load(const char *model_path) -> UdpipeModel *;
+auto udpipe_model_load_from_memory(const uint8_t *data, size_t len) -> UdpipeModel *;
 void udpipe_model_free(UdpipeModel *model);
 
 // Parse function - returns a result that must be freed with udpipe_result_free
-UdpipeParseResult *udpipe_parse(UdpipeModel *model, const char *text);
+auto udpipe_parse(UdpipeModel *model, const char *text) -> UdpipeParseResult *;
 
 // Result functions
 void udpipe_result_free(UdpipeParseResult *result);
-int32_t udpipe_result_word_count(UdpipeParseResult *result);
-UdpipeWord udpipe_result_get_word(UdpipeParseResult *result, int32_t index);
+auto udpipe_result_word_count(UdpipeParseResult *result) -> int32_t;
+auto udpipe_result_get_word(UdpipeParseResult *result, int32_t index) -> UdpipeWord;
 
 // Error handling
-const char *udpipe_get_error(void);
+auto udpipe_get_error() -> const char *;
 
 #ifdef __cplusplus
 }

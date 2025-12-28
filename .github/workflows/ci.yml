@@ -29,6 +29,7 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --check
+      - run: clang-format --dry-run --Werror src/*.{cpp,h}
 
   lint-check:
     runs-on: ubuntu-latest
@@ -40,6 +41,7 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --all-targets -- -D warnings
+      - run: clang-tidy src/*.{cpp,h}
 
   audit:
     runs-on: ubuntu-latest

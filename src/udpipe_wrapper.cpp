@@ -8,10 +8,15 @@
 #include <string>
 #include <vector>
 
-using namespace ufal::udpipe;
+using ufal::udpipe::input_format;
+using ufal::udpipe::model;
+using ufal::udpipe::sentence;
 
-// Thread-local error message
-static thread_local std::string last_error;
+// Thread-local error message accessor (avoids global mutable state)
+auto last_error() -> std::string & {
+  static thread_local std::string error;
+  return error;
+}
 
 struct UdpipeModel {
   std::unique_ptr<model> m;
@@ -31,54 +36,54 @@ struct UdpipeParseResult {
   std::vector<int32_t> sentence_ids;
 };
 
-UdpipeModel *udpipe_model_load(const char *model_path) {
-  last_error.clear();
+auto udpipe_model_load(const char *model_path) -> UdpipeModel * {
+  last_error().clear();
 
-  std::unique_ptr<model> m(model::load(model_path));
-  if (!m) {
-    last_error = "Failed to load model from: ";
-    last_error += model_path;
+  std::unique_ptr<model> loaded_model(model::load(model_path));
+  if (!loaded_model) {
+    last_error() = "Failed to load model from: ";
+    last_error() += model_path;
     return nullptr;
   }
 
   auto *wrapper = new UdpipeModel();
-  wrapper->m = std::move(m);
+  wrapper->m = std::move(loaded_model);
   return wrapper;
 }
 
-UdpipeModel *udpipe_model_load_from_memory(const uint8_t *data, size_t len) {
-  last_error.clear();
+auto udpipe_model_load_from_memory(const uint8_t *data, size_t len) -> UdpipeModel * {
+  last_error().clear();
 
   std::string model_data(reinterpret_cast<const char *>(data), len);
   std::istringstream model_stream(model_data);
 
-  std::unique_ptr<model> m(model::load(model_stream));
-  if (!m) {
-    last_error = "Failed to load model from memory";
+  std::unique_ptr<model> loaded_model(model::load(model_stream));
+  if (!loaded_model) {
+    last_error() = "Failed to load model from memory";
     return nullptr;
   }
 
   auto *wrapper = new UdpipeModel();
-  wrapper->m = std::move(m);
+  wrapper->m = std::move(loaded_model);
   return wrapper;
 }
 
 void udpipe_model_free(UdpipeModel *model) { delete model; }
 
-UdpipeParseResult *udpipe_parse(UdpipeModel *model, const char *text) {
-  if (!model || !model->m || !text) {
-    last_error = "Invalid arguments to udpipe_parse";
+auto udpipe_parse(UdpipeModel *model, const char *text) -> UdpipeParseResult * {
+  if (model == nullptr || !model->m || text == nullptr) {
+    last_error() = "Invalid arguments to udpipe_parse";
     return nullptr;
   }
 
-  last_error.clear();
+  last_error().clear();
 
   auto *result = new UdpipeParseResult();
 
   // Create input format (tokenizer)
   std::unique_ptr<input_format> tokenizer(model->m->new_tokenizer(model::DEFAULT));
   if (!tokenizer) {
-    last_error = "Failed to create tokenizer";
+    last_error() = "Failed to create tokenizer";
     delete result;
     return nullptr;
   }
@@ -87,34 +92,34 @@ UdpipeParseResult *udpipe_parse(UdpipeModel *model, const char *text) {
   tokenizer->set_text(text);
 
   // Parse sentences and extract word data directly
-  sentence s;
+  sentence current_sentence;
   std::string error;
   int32_t sentence_idx = 0;
 
-  while (tokenizer->next_sentence(s, error)) {
+  while (tokenizer->next_sentence(current_sentence, error)) {
     // Tag and parse
-    model->m->tag(s, model::DEFAULT, error);
-    model->m->parse(s, model::DEFAULT, error);
+    model->m->tag(current_sentence, model::DEFAULT, error);
+    model->m->parse(current_sentence, model::DEFAULT, error);
 
     // Extract word data (skip root at index 0)
-    for (size_t i = 1; i < s.words.size(); i++) {
-      const auto &w = s.words[i];
-      result->forms.push_back(w.form);
-      result->lemmas.push_back(w.lemma);
-      result->upostags.push_back(w.upostag);
-      result->xpostags.push_back(w.xpostag);
-      result->feats.push_back(w.feats);
-      result->deprels.push_back(w.deprel);
-      result->miscs.push_back(w.misc);
-      result->ids.push_back(static_cast<int32_t>(w.id));
-      result->heads.push_back(w.head);
+    for (size_t idx = 1; idx < current_sentence.words.size(); idx++) {
+      const auto &word = current_sentence.words[idx];
+      result->forms.push_back(word.form);
+      result->lemmas.push_back(word.lemma);
+      result->upostags.push_back(word.upostag);
+      result->xpostags.push_back(word.xpostag);
+      result->feats.push_back(word.feats);
+      result->deprels.push_back(word.deprel);
+      result->miscs.push_back(word.misc);
+      result->ids.push_back(static_cast<int32_t>(word.id));
+      result->heads.push_back(word.head);
       result->sentence_ids.push_back(sentence_idx);
     }
     sentence_idx++;
   }
 
   if (!error.empty()) {
-    last_error = error;
+    last_error() = error;
     delete result;
     return nullptr;
   }
@@ -124,32 +129,35 @@ UdpipeParseResult *udpipe_parse(UdpipeModel *model, const char *text) {
 
 void udpipe_result_free(UdpipeParseResult *result) { delete result; }
 
-int32_t udpipe_result_word_count(UdpipeParseResult *result) {
-  if (!result)
+auto udpipe_result_word_count(UdpipeParseResult *result) -> int32_t {
+  if (result == nullptr) {
     return 0;
+  }
   return static_cast<int32_t>(result->forms.size());
 }
 
-UdpipeWord udpipe_result_get_word(UdpipeParseResult *result, int32_t index) {
+auto udpipe_result_get_word(UdpipeParseResult *result, int32_t index) -> UdpipeWord {
   UdpipeWord word = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0};
 
-  if (!result || index < 0 || static_cast<size_t>(index) >= result->forms.size()) {
+  if (result == nullptr || index < 0 || static_cast<size_t>(index) >= result->forms.size()) {
     return word;
   }
 
-  size_t i = static_cast<size_t>(index);
-  word.form = result->forms[i].c_str();
-  word.lemma = result->lemmas[i].c_str();
-  word.upostag = result->upostags[i].c_str();
-  word.xpostag = result->xpostags[i].c_str();
-  word.feats = result->feats[i].c_str();
-  word.deprel = result->deprels[i].c_str();
-  word.misc = result->miscs[i].c_str();
-  word.id = result->ids[i];
-  word.head = result->heads[i];
-  word.sentence_id = result->sentence_ids[i];
+  auto idx = static_cast<size_t>(index);
+  word.form = result->forms[idx].c_str();
+  word.lemma = result->lemmas[idx].c_str();
+  word.upostag = result->upostags[idx].c_str();
+  word.xpostag = result->xpostags[idx].c_str();
+  word.feats = result->feats[idx].c_str();
+  word.deprel = result->deprels[idx].c_str();
+  word.misc = result->miscs[idx].c_str();
+  word.id = result->ids[idx];
+  word.head = result->heads[idx];
+  word.sentence_id = result->sentence_ids[idx];
 
   return word;
 }
 
-const char *udpipe_get_error(void) { return last_error.empty() ? nullptr : last_error.c_str(); }
+auto udpipe_get_error() -> const char * {
+  return last_error().empty() ? nullptr : last_error().c_str();
+}

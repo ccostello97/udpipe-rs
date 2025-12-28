@@ -13,18 +13,21 @@ build-release: ## Build optimized release binary
 	cargo build --release
 
 # === Formatting ===
-format-fix: ## Format code
+format-fix: ## Format code (Rust and C++)
 	cargo fmt
+	clang-format -i src/*.{cpp,h}
 
-format-check: ## Check formatting
+format-check: ## Check formatting (Rust and C++)
 	cargo fmt --check
+	clang-format --dry-run --Werror src/*.{cpp,h}
 
 # === Linting ===
-lint-fix: ## Auto-fix clippy warnings
+lint-fix: ## Auto-fix linter warnings
 	cargo clippy --fix --all-targets --allow-dirty --allow-staged
 
-lint-check: ## Check for clippy warnings
+lint-check: ## Check for linter warnings (Rust and C++)
 	cargo clippy --all-targets -- -D warnings
+	clang-tidy src/*.{cpp,h}
 
 # === Documentation ===
 docs: ## Build and open documentation
