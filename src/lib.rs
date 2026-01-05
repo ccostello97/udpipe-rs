@@ -174,7 +174,7 @@ impl Word {
     /// space. This returns `true` (the default) when that annotation is
     /// absent.
     #[must_use]
-    pub fn space_after(&self) -> bool {
+    pub fn has_space_after(&self) -> bool {
         !self.misc.contains("SpaceAfter=No")
     }
 }
@@ -819,16 +819,16 @@ mod tests {
     }
 
     #[test]
-    fn test_space_after() {
+    fn test_has_space_after() {
         let mut word = make_word("");
         word.misc = String::new();
-        assert!(word.space_after()); // default: has space
+        assert!(word.has_space_after()); // default: has space
 
         word.misc = "SpaceAfter=No".to_owned();
-        assert!(!word.space_after());
+        assert!(!word.has_space_after());
 
         word.misc = "SpaceAfter=No|Other=Value".to_owned();
-        assert!(!word.space_after());
+        assert!(!word.has_space_after());
     }
 
     #[test]

@@ -13,11 +13,11 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -hicpp-no-array-decay,
   -llvm-header-guard
 
-HeaderFilterRegex: '.*/udpipe-rs/src/.*'
-WarningsAsErrors: ''
+HeaderFilterRegex: ".*/udpipe-rs/src/.*"
+WarningsAsErrors: ""

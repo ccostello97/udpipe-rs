@@ -1,25 +1,24 @@
 {
   // Editor - global behavior
+  "editor.formatOnSave": true,
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
 
   // Language-specific formatting
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "editor.formatOnSave": true,
     "editor.rulers": [100]
   },
   "[toml]": {
     "editor.defaultFormatter": "tamasfe.even-better-toml",
-    "editor.formatOnSave": true
   },
   "[cpp]": {
     "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
-    "editor.formatOnSave": true
+    "editor.rulers": [80]
   },
   "[c]": {
     "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
-    "editor.formatOnSave": true
+    "editor.rulers": [80]
   },
 
   // Rust Analyzer
@@ -29,9 +28,6 @@
   "rust-analyzer.imports.prefix": "crate",
 
   // Explorer
-  "files.exclude": {
-    "target": true
-  },
   "files.associations": {
     "LICENSE-*": "plaintext"
   },

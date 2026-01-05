@@ -7,26 +7,56 @@
 ```bash
 git clone --recurse-submodules https://github.com/ccostello97/udpipe-rs.git
 cd udpipe-rs
-make build && make test
+make dev    # Install development tools
+make build  # Compile the project
 ```
 
 > **Note:** The `--recurse-submodules` flag is required. UDPipe C++ source is vendored as a submodule in `vendor/udpipe`. If you forgot it, run `git submodule update --init`.
 
 ## Makefile Targets
 
-Run `make help` to list all targets. The most useful:
+Run `make help` to list all targets, organized by category:
 
-```bash
-make fix      # Auto-fix formatting and lint issues
-make check    # Run full CI suite locally (required before PR)
-make docs     # Build and open documentation
-```
+### Build
 
-The `check` target runs: format check, clippy, doc build, security audit, MSRV verification, tests, and coverage (≥90% line coverage required).
+| Target  | Description                        |
+|---------|------------------------------------|
+| `build` | Compile the project in debug mode  |
+| `docs`  | Build and open API documentation   |
+
+### Fix
+
+| Target     | Description                    |
+|------------|--------------------------------|
+| `lint-fix` | Apply automatic linter fixes   |
+| `fmt-fix`  | Apply automatic formatting     |
+| `fix`      | Apply all automatic fixes      |
+
+### Check
+
+| Target       | Description                                    |
+|--------------|------------------------------------------------|
+| `lint`       | Check for linter warnings (Clippy + clang-tidy)|
+| `fmt`        | Check code formatting (rustfmt + clang-format) |
+| `type-check` | Check for type errors                          |
+| `docs-check` | Check documentation for warnings               |
+| `audit`      | Check dependencies for security vulnerabilities|
+| `compat`     | Verify minimum supported Rust version (MSRV)   |
+| `coverage`   | Run tests and enforce 100% function coverage   |
+| `check`      | Run all checks (required before PR)            |
+
+### Utilities
+
+| Target   | Description                                  |
+|----------|----------------------------------------------|
+| `dev`    | Install required development tools           |
+| `update` | Update dependencies to latest compatible     |
+| `clean`  | Remove build artifacts and caches            |
+| `all`    | Run all fixes followed by all checks         |
 
 ## Code Standards
 
-We use `rustfmt` (default settings) and `clippy` (warnings as errors). Run `make fix` to auto-fix issues.
+We use `rustfmt` (nightly) and `clippy` (warnings as errors) for Rust, and `clang-format` and `clang-tidy` for C++. Run `make fix` to auto-fix issues.
 
 All public items require documentation with examples where appropriate:
 
@@ -46,11 +76,10 @@ pub fn parse(input: &str) -> Vec<Token> { /* ... */ }
 Unit tests live in `src/lib.rs` under `#[cfg(test)]`. Integration tests in `tests/integration.rs` download real models and exercise the full pipeline.
 
 ```bash
-make test              # All tests
-make test-unit         # Unit tests only
-make test-integration  # Integration tests only
-make coverage-html     # Coverage report in browser
+make coverage  # Run all tests with coverage (opens HTML report)
 ```
+
+The coverage target enforces 100% function coverage.
 
 ## Pull Requests
 

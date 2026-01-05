@@ -198,7 +198,7 @@ Each parsed word contains:
 - `is_adjective()` — Returns true for ADJ tag
 - `is_punct()` — Returns true for PUNCT tag
 - `is_root()` — Returns true if this word is the sentence root
-- `space_after()` — Returns true if there's a space after this word (default)
+- `has_space_after()` — Returns true if there's a space after this word (default)
 
 ## Examples
 

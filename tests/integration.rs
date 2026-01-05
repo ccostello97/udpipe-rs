@@ -130,8 +130,8 @@ fn test_misc_field_space_after() {
     let words = model.parse("Hello, world!").expect("Failed to parse");
 
     // Most words have space after, some (before punctuation) don't
-    let has_space = words.iter().filter(|w| w.space_after()).count();
-    let no_space = words.iter().filter(|w| !w.space_after()).count();
+    let has_space = words.iter().filter(|w| w.has_space_after()).count();
+    let no_space = words.iter().filter(|w| !w.has_space_after()).count();
 
     // Should have at least some of each
     assert!(has_space > 0, "Should have words with space after");

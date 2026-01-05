@@ -51,7 +51,8 @@ auto udpipe_model_load(const char *model_path) -> UdpipeModel * {
   return wrapper;
 }
 
-auto udpipe_model_load_from_memory(const uint8_t *data, size_t len) -> UdpipeModel * {
+auto udpipe_model_load_from_memory(const uint8_t *data, size_t len)
+    -> UdpipeModel * {
   last_error().clear();
 
   std::string model_data(reinterpret_cast<const char *>(data), len);
@@ -81,7 +82,8 @@ auto udpipe_parse(UdpipeModel *model, const char *text) -> UdpipeParseResult * {
   auto *result = new UdpipeParseResult();
 
   // Create input format (tokenizer)
-  std::unique_ptr<input_format> tokenizer(model->m->new_tokenizer(model::DEFAULT));
+  std::unique_ptr<input_format> tokenizer(
+      model->m->new_tokenizer(model::DEFAULT));
   if (!tokenizer) {
     last_error() = "Failed to create tokenizer";
     delete result;
@@ -136,10 +138,13 @@ auto udpipe_result_word_count(UdpipeParseResult *result) -> int32_t {
   return static_cast<int32_t>(result->forms.size());
 }
 
-auto udpipe_result_get_word(UdpipeParseResult *result, int32_t index) -> UdpipeWord {
-  UdpipeWord word = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0};
+auto udpipe_result_get_word(UdpipeParseResult *result, int32_t index)
+    -> UdpipeWord {
+  UdpipeWord word = {nullptr, nullptr, nullptr, nullptr, nullptr,
+                     nullptr, nullptr, 0,       0,       0};
 
-  if (result == nullptr || index < 0 || static_cast<size_t>(index) >= result->forms.size()) {
+  if (result == nullptr || index < 0 ||
+      static_cast<size_t>(index) >= result->forms.size()) {
     return word;
   }
 
