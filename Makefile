@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := help
 
+CXX_FILES := $(shell find src include -name '*.cpp' -o -name '*.h')
+
 .PHONY: help
 help:
 	@echo "Usage: make [target]"
@@ -17,30 +19,30 @@ docs: ## Build and open API documentation
 
 ### Fix
 
-.PHONY: lint-fix
-lint-fix: dev ## Apply automatic linter fixes
+.PHONY: lint
+lint: dev ## Auto-fix linter warnings
 	-cargo clippy --fix --allow-dirty --allow-staged
-	-clang-tidy --fix src/*.{cpp,h}
+	-clang-tidy --fix $(CXX_FILES)
 
-.PHONY: fmt-fix
-fmt-fix: dev ## Apply automatic formatting fixes
+.PHONY: fmt
+fmt: dev ## Auto-format code
 	cargo +nightly fmt
-	clang-format -i src/*.{cpp,h}
+	clang-format -i $(CXX_FILES)
 
 .PHONY: fix
-fix: lint-fix fmt-fix ## Apply all automatic fixes
+fix: lint fmt ## Apply all automatic fixes
 
 ### Check
 
 .PHONY: lint-check
-lint-check: dev ## Check for linter warnings
+lint-check: dev ## Verify no linter warnings
 	cargo clippy -- -D warnings
-	clang-tidy src/*.{cpp,h}
+	clang-tidy $(CXX_FILES)
 
 .PHONY: fmt-check
-fmt-check: dev ## Check code formatting
+fmt-check: dev ## Verify code formatting
 	cargo +nightly fmt -- --check
-	clang-format --dry-run --Werror src/*.{cpp,h}
+	clang-format --dry-run --Werror $(CXX_FILES)
 
 .PHONY: type-check
 type-check: ## Check for type errors
@@ -57,6 +59,10 @@ audit: dev ## Check dependencies for security vulnerabilities
 .PHONY: compat
 compat: dev ## Verify minimum supported Rust version (MSRV)
 	cargo msrv verify
+
+.PHONY: test
+test: dev ## Run tests (without checking coverage)
+	cargo test
 
 .PHONY: coverage
 coverage: dev ## Run tests and enforce 100% function coverage

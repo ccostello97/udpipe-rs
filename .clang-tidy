@@ -16,8 +16,7 @@ Checks: >
   -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -hicpp-no-array-decay,
-  -llvm-header-guard
+  -hicpp-no-array-decay
 
-HeaderFilterRegex: ".*/udpipe-rs/src/.*"
+HeaderFilterRegex: ".*/udpipe-rs/(src|include)/.*"
 WarningsAsErrors: "*"

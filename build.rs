@@ -44,6 +44,7 @@ fn main() {
         .opt_level(2)
         .flag_if_supported("-std=c++11")
         .flag_if_supported("-w") // Suppress warnings from UDPipe
+        .include(manifest_dir.join("include"))
         .include(&src_dir)
         .include(src_dir.join("model"))
         .include(src_dir.join("morphodita"))
@@ -77,7 +78,7 @@ fn main() {
 
     // Tell cargo to rerun if sources change
     println!("cargo:rerun-if-changed=src/udpipe_wrapper.cpp");
-    println!("cargo:rerun-if-changed=src/udpipe_wrapper.h");
+    println!("cargo:rerun-if-changed=include/udpipe_rs/udpipe_wrapper.h");
     println!("cargo:rerun-if-changed=vendor/udpipe/src");
 }
 

@@ -19,40 +19,40 @@ Run `make help` to list all targets, organized by category:
 
 ### Build
 
-| Target  | Description                        |
-|---------|------------------------------------|
-| `build` | Compile the project in debug mode  |
-| `docs`  | Build and open API documentation   |
+| Target  | Description                       |
+| ------- | --------------------------------- |
+| `build` | Compile the project in debug mode |
+| `docs`  | Build and open API documentation  |
 
 ### Fix
 
-| Target     | Description                    |
-|------------|--------------------------------|
-| `lint-fix` | Apply automatic linter fixes   |
-| `fmt-fix`  | Apply automatic formatting     |
-| `fix`      | Apply all automatic fixes      |
+| Target | Description                      |
+| ------ | -------------------------------- |
+| `lint` | Apply automatic linter fixes     |
+| `fmt`  | Apply automatic formatting fixes |
+| `fix`  | Apply all automatic fixes        |
 
 ### Check
 
-| Target       | Description                                    |
-|--------------|------------------------------------------------|
-| `lint`       | Check for linter warnings (Clippy + clang-tidy)|
-| `fmt`        | Check code formatting (rustfmt + clang-format) |
-| `type-check` | Check for type errors                          |
-| `docs-check` | Check documentation for warnings               |
-| `audit`      | Check dependencies for security vulnerabilities|
-| `compat`     | Verify minimum supported Rust version (MSRV)   |
-| `coverage`   | Run tests and enforce 100% function coverage   |
-| `check`      | Run all checks (required before PR)            |
+| Target       | Description                                     |
+| ------------ | ----------------------------------------------- |
+| `lint-check` | Check for linter warnings (Clippy + clang-tidy) |
+| `fmt-check`  | Check code formatting (rustfmt + clang-format)  |
+| `type-check` | Check for type errors                           |
+| `docs-check` | Check documentation for warnings                |
+| `audit`      | Check dependencies for security vulnerabilities |
+| `compat`     | Verify minimum supported Rust version (MSRV)    |
+| `coverage`   | Run tests and enforce 100% function coverage    |
+| `check`      | Run all checks (required before PR)             |
 
 ### Utilities
 
-| Target   | Description                                  |
-|----------|----------------------------------------------|
-| `dev`    | Install required development tools           |
-| `update` | Update dependencies to latest compatible     |
-| `clean`  | Remove build artifacts and caches            |
-| `all`    | Run all fixes followed by all checks         |
+| Target   | Description                              |
+| -------- | ---------------------------------------- |
+| `dev`    | Install required development tools       |
+| `update` | Update dependencies to latest compatible |
+| `clean`  | Remove build artifacts and caches        |
+| `all`    | Run all fixes followed by all checks     |
 
 ## Code Standards
 

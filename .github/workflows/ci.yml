@@ -30,7 +30,7 @@ jobs:
           toolchain: nightly
           components: rustfmt
       - run: cargo +nightly fmt --check
-      - run: clang-format-18 --dry-run --Werror src/*.{cpp,h}
+      - run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
 
   lint-check:
     runs-on: ubuntu-latest
@@ -42,7 +42,7 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --all-targets -- -D warnings
-      - run: clang-tidy-18 src/*.{cpp,h}
+      - run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-tidy-18
 
   audit:
     runs-on: ubuntu-latest
