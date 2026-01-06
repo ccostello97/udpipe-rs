@@ -8,7 +8,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+    - cron: "0 0 * * 0" # Weekly on Sunday at midnight UTC
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
           toolchain: nightly
           components: rustfmt
       - run: cargo +nightly fmt --check
-      - run: clang-format --dry-run --Werror src/*.{cpp,h}
+      - run: clang-format-18 --dry-run --Werror src/*.{cpp,h}
 
   lint-check:
     runs-on: ubuntu-latest
@@ -42,7 +42,7 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --all-targets -- -D warnings
-      - run: clang-tidy src/*.{cpp,h}
+      - run: clang-tidy-18 src/*.{cpp,h}
 
   audit:
     runs-on: ubuntu-latest

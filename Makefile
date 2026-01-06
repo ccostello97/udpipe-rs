@@ -32,13 +32,13 @@ fix: lint-fix fmt-fix ## Apply all automatic fixes
 
 ### Check
 
-.PHONY: lint
-lint: dev ## Check for linter warnings
+.PHONY: lint-check
+lint-check: dev ## Check for linter warnings
 	cargo clippy -- -D warnings
 	clang-tidy src/*.{cpp,h}
 
-.PHONY: fmt
-fmt: dev ## Check code formatting
+.PHONY: fmt-check
+fmt-check: dev ## Check code formatting
 	cargo +nightly fmt -- --check
 	clang-format --dry-run --Werror src/*.{cpp,h}
 
@@ -65,7 +65,7 @@ coverage: dev ## Run tests and enforce 100% function coverage
 	cargo llvm-cov report --html --open
 
 .PHONY: check
-check: lint fmt type-check docs-check audit compat coverage ## Run all checks
+check: lint-check fmt-check type-check docs-check audit compat coverage ## Run all checks
 
 ### Utilities
 
@@ -73,6 +73,8 @@ check: lint fmt type-check docs-check audit compat coverage ## Run all checks
 dev: ## Install required development tools
 	rustup component add clippy rustfmt llvm-tools-preview
 	cargo install --locked cargo-audit cargo-msrv cargo-llvm-cov
+	clang-format --version 2>/dev/null | grep -q "version 18" || (echo "Error: clang-format 18 required (see CONTRIBUTING.md)" && exit 1)
+	clang-tidy --version 2>/dev/null | grep -q "version 18" || (echo "Error: clang-tidy 18 required (see CONTRIBUTING.md)" && exit 1)
 
 .PHONY: update
 update: ## Update dependencies to latest compatible versions

@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-**Prerequisites:** Rust 1.85+, a C++11 compiler, and Git.
+**Prerequisites:** Rust 1.85+, a C++11 compiler, LLVM 18 (`clang-format`, `clang-tidy`), and Git.
 
 ```bash
 git clone --recurse-submodules https://github.com/ccostello97/udpipe-rs.git
@@ -56,7 +56,13 @@ Run `make help` to list all targets, organized by category:
 
 ## Code Standards
 
-We use `rustfmt` (nightly) and `clippy` (warnings as errors) for Rust, and `clang-format` and `clang-tidy` for C++. Run `make fix` to auto-fix issues.
+We use `rustfmt` (nightly) and `clippy` (warnings as errors) for Rust, and `clang-format` and `clang-tidy` (LLVM 18) for C++. Run `make fix` to auto-fix issues.
+
+> **Note:** LLVM 18 is required for consistent formatting. Install via:
+>
+> - **macOS**: `brew install llvm@18`
+> - **Ubuntu/Debian**: `apt install clang-format-18 clang-tidy-18`
+> - **Other**: [LLVM releases](https://github.com/llvm/llvm-project/releases/tag/llvmorg-18.1.8)
 
 All public items require documentation with examples where appropriate:
 
@@ -99,6 +105,7 @@ Releases are automated via [release-please](https://github.com/googleapis/releas
 3. The release triggers `cargo publish` to crates.io
 
 This is why [Conventional Commits](https://www.conventionalcommits.org/) are required — release-please uses them to determine version bumps:
+
 - `fix:` → patch (0.0.x)
 - `feat:` → minor (0.x.0)
 - `feat!:` or `BREAKING CHANGE:` → major (x.0.0)

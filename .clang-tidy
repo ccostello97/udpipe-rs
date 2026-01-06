@@ -20,4 +20,4 @@ Checks: >
   -llvm-header-guard
 
 HeaderFilterRegex: ".*/udpipe-rs/src/.*"
-WarningsAsErrors: ""
+WarningsAsErrors: "*"

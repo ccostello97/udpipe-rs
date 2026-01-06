@@ -28,8 +28,8 @@ using UdpipeWord = struct {
 
 // Model functions
 auto udpipe_model_load(const char *model_path) -> UdpipeModel *;
-auto udpipe_model_load_from_memory(const uint8_t *data, size_t len)
-    -> UdpipeModel *;
+auto udpipe_model_load_from_memory(const uint8_t *data,
+                                   size_t len) -> UdpipeModel *;
 void udpipe_model_free(UdpipeModel *model);
 
 // Parse function - returns a result that must be freed with udpipe_result_free
@@ -38,8 +38,8 @@ auto udpipe_parse(UdpipeModel *model, const char *text) -> UdpipeParseResult *;
 // Result functions
 void udpipe_result_free(UdpipeParseResult *result);
 auto udpipe_result_word_count(UdpipeParseResult *result) -> int32_t;
-auto udpipe_result_get_word(UdpipeParseResult *result, int32_t index)
-    -> UdpipeWord;
+auto udpipe_result_get_word(UdpipeParseResult *result,
+                            int32_t index) -> UdpipeWord;
 
 // Error handling
 auto udpipe_get_error() -> const char *;
