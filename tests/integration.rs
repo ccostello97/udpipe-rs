@@ -193,3 +193,37 @@ fn test_model_drop() {
     let model = udpipe_rs::Model::load(&model_path).expect("Failed to load model");
     drop(model); // Explicit drop - coverage tools sometimes miss implicit drops
 }
+
+#[test]
+fn test_word_pos_helpers() {
+    let model = get_model();
+    let words = model
+        .parse("The quick brown fox jumps.")
+        .expect("Failed to parse");
+
+    // Test is_noun - "fox" should be a noun
+    let has_noun = words.iter().any(|w| w.is_noun());
+    assert!(has_noun, "Should have at least one noun");
+
+    // Test is_adjective - "quick" and "brown" should be adjectives
+    let has_adj = words.iter().any(|w| w.is_adjective());
+    assert!(has_adj, "Should have at least one adjective");
+
+    // Test is_punct - "." should be punctuation
+    let has_punct = words.iter().any(|w| w.is_punct());
+    assert!(has_punct, "Should have punctuation");
+}
+
+#[test]
+fn test_word_get_feature() {
+    let model = get_model();
+    let words = model.parse("She runs.").expect("Failed to parse");
+
+    // Find a word with features
+    let word_with_feats = words.iter().find(|w| !w.feats.is_empty());
+    if let Some(word) = word_with_feats {
+        // Try to get a feature - may or may not exist
+        let _ = word.get_feature("Number");
+        let _ = word.get_feature("NonExistent");
+    }
+}

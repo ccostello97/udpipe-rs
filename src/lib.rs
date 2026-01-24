@@ -922,4 +922,27 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.message.contains("empty"));
     }
+
+    #[test]
+    fn test_ffi_null_result_word_count() {
+        // SAFETY: Testing that null pointer returns 0 (defensive C++ code)
+        let count = unsafe { ffi::udpipe_result_word_count(std::ptr::null_mut()) };
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_ffi_null_result_get_word() {
+        // SAFETY: Testing that null pointer returns zeroed word (defensive C++ code)
+        let word = unsafe { ffi::udpipe_result_get_word(std::ptr::null_mut(), 0) };
+        assert!(word.form.is_null());
+        assert!(word.lemma.is_null());
+        assert!(word.upostag.is_null());
+    }
+
+    #[test]
+    fn test_ffi_invalid_index() {
+        // SAFETY: Testing bounds checking with negative index
+        let word = unsafe { ffi::udpipe_result_get_word(std::ptr::null_mut(), -1) };
+        assert!(word.form.is_null());
+    }
 }

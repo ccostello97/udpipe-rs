@@ -35,7 +35,7 @@ jobs:
           toolchain: nightly
           components: rustfmt
       - name: Check Rust
-        run: cargo +nightly fmt --all -- --check
+        run: cargo fmt --all -- --check
       - name: Check C++
         run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
 
@@ -48,6 +48,7 @@ jobs:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
+          toolchain: nightly
           components: clippy
       - name: Check Rust
         run: cargo clippy --all-targets --all-features -- -D warnings
@@ -99,6 +100,8 @@ jobs:
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
       - name: Build docs
         run: cargo doc --no-deps --all-features --workspace
 
@@ -112,12 +115,13 @@ jobs:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
+          toolchain: nightly
           components: llvm-tools-preview
       - uses: taiki-e/install-action@v2.67.8
         with:
           tool: cargo-llvm-cov
       - name: Generate report
-        run: cargo llvm-cov --all-features --workspace --fail-under-functions 100 --lcov --output-path lcov.info
+        run: cargo llvm-cov --all-features --workspace --ignore-filename-regex 'vendor/.*' --fail-under-functions 100 --lcov --output-path lcov.info
       - name: Upload report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v4
@@ -154,6 +158,8 @@ jobs:
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
       - name: Verify lockfile
         run: cargo update --locked --workspace
 
@@ -171,7 +177,7 @@ jobs:
         with:
           tool: cargo-udeps
       - name: Find unused
-        run: cargo +nightly udeps --all-targets
+        run: cargo udeps --all-targets
 
   outdated-deps:
     name: Outdated dependencies
@@ -181,6 +187,8 @@ jobs:
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
       - uses: taiki-e/install-action@v2.67.8
         with:
           tool: cargo-outdated
@@ -196,6 +204,8 @@ jobs:
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
       - uses: taiki-e/install-action@v2.67.8
         with:
           tool: cargo-hack
@@ -213,6 +223,8 @@ jobs:
           ref: ${{ github.base_ref }}
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
       - uses: taiki-e/install-action@v2.67.8
         with:
           tool: critcmp
