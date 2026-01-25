@@ -8,7 +8,7 @@
     reason = "tests use stderr for diagnostic output"
 )]
 
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Mutex, OnceLock};
 
 const MODEL_LANGUAGE: &str = "english-ewt";
 
@@ -16,7 +16,8 @@ const MODEL_LANGUAGE: &str = "english-ewt";
 // Tests acquire the lock to ensure exclusive access during parsing.
 static MODEL: OnceLock<(tempfile::TempDir, Mutex<udpipe_rs::Model>)> = OnceLock::new();
 
-fn get_model() -> MutexGuard<'static, udpipe_rs::Model> {
+/// Parse text with the shared model, releasing the lock immediately after.
+fn parse(text: &str) -> Result<Vec<udpipe_rs::Word>, udpipe_rs::UdpipeError> {
     MODEL
         .get_or_init(|| {
             let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
@@ -31,12 +32,12 @@ fn get_model() -> MutexGuard<'static, udpipe_rs::Model> {
         .1
         .lock()
         .expect("Model mutex poisoned")
+        .parse(text)
 }
 
 #[test]
 fn test_parse_simple_sentence() {
-    let model = get_model();
-    let words = model.parse("Hello world!").expect("Failed to parse");
+    let words = parse("Hello world!").expect("Failed to parse");
 
     assert!(!words.is_empty());
     assert!(words.iter().any(|w| w.form == "Hello"));
@@ -45,10 +46,7 @@ fn test_parse_simple_sentence() {
 
 #[test]
 fn test_parse_multiple_sentences() {
-    let model = get_model();
-    let words = model
-        .parse("The cat sat. The dog ran.")
-        .expect("Failed to parse");
+    let words = parse("The cat sat. The dog ran.").expect("Failed to parse");
 
     // Should have words from both sentences
     assert!(words.len() >= 6);
@@ -61,10 +59,7 @@ fn test_parse_multiple_sentences() {
 
 #[test]
 fn test_word_ids_are_sequential() {
-    let model = get_model();
-    let words = model
-        .parse("The quick brown fox.")
-        .expect("Failed to parse");
+    let words = parse("The quick brown fox.").expect("Failed to parse");
 
     assert!(!words.is_empty(), "Should have parsed words");
 
@@ -76,8 +71,7 @@ fn test_word_ids_are_sequential() {
 
 #[test]
 fn test_dependency_structure() {
-    let model = get_model();
-    let words = model.parse("The cat sleeps.").expect("Failed to parse");
+    let words = parse("The cat sleeps.").expect("Failed to parse");
 
     // Should have exactly one root
     let roots: Vec<_> = words.iter().filter(|w| w.is_root()).collect();
@@ -93,8 +87,7 @@ fn test_dependency_structure() {
 
 #[test]
 fn test_morphological_features() {
-    let model = get_model();
-    let words = model.parse("She runs quickly.").expect("Failed to parse");
+    let words = parse("She runs quickly.").expect("Failed to parse");
 
     // Find the verb "runs"
     let verb = words.iter().find(|w| w.lemma == "run");
@@ -111,27 +104,21 @@ fn test_morphological_features() {
 
 #[test]
 fn test_empty_input() {
-    let model = get_model();
-    let words = model.parse("").expect("Should handle empty input");
+    let words = parse("").expect("Should handle empty input");
 
     assert!(words.is_empty(), "Empty input should produce no words");
 }
 
 #[test]
 fn test_unicode_input() {
-    let model = get_model();
-
     // Test with various Unicode characters
-    let words = model
-        .parse("Héllo wörld! 你好")
-        .expect("Should handle Unicode");
+    let words = parse("Héllo wörld! 你好").expect("Should handle Unicode");
     assert!(!words.is_empty());
 }
 
 #[test]
 fn test_misc_field_space_after() {
-    let model = get_model();
-    let words = model.parse("Hello, world!").expect("Failed to parse");
+    let words = parse("Hello, world!").expect("Failed to parse");
 
     // Most words have space after, some (before punctuation) don't
     let has_space = words.iter().filter(|w| w.has_space_after()).count();
@@ -147,8 +134,7 @@ fn test_misc_field_space_after() {
 
 #[test]
 fn test_xpostag_field() {
-    let model = get_model();
-    let words = model.parse("The cat sleeps.").expect("Failed to parse");
+    let words = parse("The cat sleeps.").expect("Failed to parse");
 
     assert!(!words.is_empty(), "Should have parsed words");
 
@@ -161,8 +147,7 @@ fn test_xpostag_field() {
 
 #[test]
 fn test_parse_with_null_byte() {
-    let model = get_model();
-    let result = model.parse("Hello\0world");
+    let result = parse("Hello\0world");
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(err.message.contains("null byte"));
@@ -200,10 +185,7 @@ fn test_model_drop() {
 
 #[test]
 fn test_word_pos_helpers() {
-    let model = get_model();
-    let words = model
-        .parse("The quick brown fox jumps.")
-        .expect("Failed to parse");
+    let words = parse("The quick brown fox jumps.").expect("Failed to parse");
 
     // Test is_noun - "fox" should be a noun
     let has_noun = words.iter().any(udpipe_rs::Word::is_noun);
@@ -220,8 +202,7 @@ fn test_word_pos_helpers() {
 
 #[test]
 fn test_word_get_feature() {
-    let model = get_model();
-    let words = model.parse("She runs.").expect("Failed to parse");
+    let words = parse("She runs.").expect("Failed to parse");
 
     // Find a word with features
     let word_with_feats = words.iter().find(|w| !w.feats.is_empty());
