@@ -216,11 +216,11 @@ cargo run --example parse_text -- "Your text here."
 
 Pre-trained models for 100+ treebanks are available from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131). The `download_model` function fetches from this repository automatically.
 
-## Build requirements
+## Requirements
 
-- C++ compiler with C++11 support
+**For users:** A C++ compiler with C++11 support. The build script compiles UDPipe as a static library automatically.
 
-The build script automatically downloads the UDPipe source code and compiles it as a static library. No external tools are required.
+**For contributors:** Just Docker. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 
