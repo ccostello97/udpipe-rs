@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-CXX_FILES := src/udpipe_wrapper.cpp include/udpipe_wrapper.h
+CXX_GLOB := find src include -name '*.cpp' -o -name '*.h'
 DOCKER_IMAGE := udpipe-rs-dev
 DOCKER_RUN := docker run --rm -v $(CURDIR):/workspace -w /workspace $(DOCKER_IMAGE)
 
@@ -32,17 +32,17 @@ build: docker ## Compile the project in debug mode
 .PHONY: docs
 docs: docker ## Build and open API documentation
 	$(DOCKER_RUN) cargo doc --no-deps
-	open target/doc/udpipe/index.html || xdg-open target/doc/udpipe/index.html
+	open target/doc/udpipe_rs/index.html || xdg-open target/doc/udpipe_rs/index.html
 
 ### Fix
 
 .PHONY: lint
 lint: docker ## Auto-fix linter warnings
-	-$(DOCKER_RUN) sh -c 'cargo clippy --fix --allow-dirty --allow-staged && clang-tidy-18 --fix $(CXX_FILES)'
+	-$(DOCKER_RUN) sh -c 'cargo clippy --fix --allow-dirty --allow-staged && $(CXX_GLOB) | xargs clang-tidy-18 --fix'
 
 .PHONY: fmt
 fmt: docker ## Auto-format code
-	$(DOCKER_RUN) sh -c 'cargo fmt && clang-format-18 -i $(CXX_FILES)'
+	$(DOCKER_RUN) sh -c 'cargo fmt && $(CXX_GLOB) | xargs clang-format-18 -i'
 
 .PHONY: fix
 fix: lint fmt ## Apply all automatic fixes (lint + format)
@@ -51,11 +51,11 @@ fix: lint fmt ## Apply all automatic fixes (lint + format)
 
 .PHONY: lint-check
 lint-check: docker ## Verify no linter warnings
-	$(DOCKER_RUN) sh -c 'cargo clippy -- -D warnings && clang-tidy-18 $(CXX_FILES)'
+	$(DOCKER_RUN) sh -c 'cargo clippy --all-targets --all-features -- -D warnings && $(CXX_GLOB) | xargs clang-tidy-18'
 
 .PHONY: fmt-check
 fmt-check: docker ## Verify code formatting
-	$(DOCKER_RUN) sh -c 'cargo fmt -- --check && clang-format-18 --dry-run --Werror $(CXX_FILES)'
+	$(DOCKER_RUN) sh -c 'cargo fmt -- --check && $(CXX_GLOB) | xargs clang-format-18 --dry-run --Werror'
 
 .PHONY: docs-check
 docs-check: docker ## Check documentation for warnings
@@ -110,8 +110,23 @@ coverage-html: coverage ## Generate HTML coverage report and open in browser
 	$(DOCKER_RUN) cargo llvm-cov report --ignore-filename-regex 'vendor/.*' --html
 	open target/llvm-cov/html/index.html || xdg-open target/llvm-cov/html/index.html
 
+### Sanitizers
+
+.PHONY: asan
+asan: docker ## Run tests with AddressSanitizer + UndefinedBehaviorSanitizer
+	$(DOCKER_RUN) sh -c 'cargo clean && RUSTFLAGS="-Z sanitizer=address" cargo test --lib --tests --target $$(rustc -vV | grep host | cut -d" " -f2) && cargo clean'
+
+.PHONY: tsan
+tsan: docker ## Run tests with ThreadSanitizer + UndefinedBehaviorSanitizer
+	$(DOCKER_RUN) sh -c 'cargo clean && RUSTFLAGS="-Z sanitizer=thread" cargo test -Zbuild-std --lib --tests --target $$(rustc -vV | grep host | cut -d" " -f2) -- --test-threads=1 && cargo clean'
+
+.PHONY: sanitize
+sanitize: asan tsan ## Run all sanitizer checks (ASAN, then TSAN)
+
+### CI
+
 .PHONY: check
-check: lint-check fmt-check docs-check audit deny lockfile unused-deps outdated-deps compat hack bench coverage ## Run all checks
+check: lint-check fmt-check docs-check audit deny lockfile unused-deps outdated-deps compat hack bench coverage sanitize ## Run all checks
 
 ### Utilities
 

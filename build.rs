@@ -40,10 +40,16 @@ fn main() {
     // Build UDPipe as a static library
     let mut build = cc::Build::new();
     let target = env::var("TARGET").unwrap();
+    let rustflags = env::var("RUSTFLAGS").unwrap_or_default();
 
     // Enable C++ coverage instrumentation on Linux when running under
     // cargo-llvm-cov
     let coverage_enabled = env::var("CARGO_LLVM_COV").is_ok() && target.contains("linux");
+
+    // Detect sanitizers from RUSTFLAGS
+    let asan_enabled = rustflags.contains("sanitizer=address");
+    let tsan_enabled = rustflags.contains("sanitizer=thread");
+    let sanitizer_enabled = asan_enabled || tsan_enabled;
 
     if coverage_enabled {
         build
@@ -51,6 +57,18 @@ fn main() {
             .flag("-fcoverage-mapping")
             .flag("-O0")
             .flag("-g");
+    } else if sanitizer_enabled {
+        // Sanitizers need debug info and reduced optimization
+        build.flag("-O1").flag("-g").flag("-fno-omit-frame-pointer");
+
+        if asan_enabled {
+            build.flag("-fsanitize=address");
+        }
+        if tsan_enabled {
+            build.flag("-fsanitize=thread");
+        }
+        // Always enable UBSAN with other sanitizers (it's compatible)
+        build.flag("-fsanitize=undefined");
     } else {
         build.opt_level(2).define("NDEBUG", None);
     }

@@ -202,15 +202,15 @@ fn test_word_pos_helpers() {
         .expect("Failed to parse");
 
     // Test is_noun - "fox" should be a noun
-    let has_noun = words.iter().any(|w| w.is_noun());
+    let has_noun = words.iter().any(udpipe_rs::Word::is_noun);
     assert!(has_noun, "Should have at least one noun");
 
     // Test is_adjective - "quick" and "brown" should be adjectives
-    let has_adj = words.iter().any(|w| w.is_adjective());
+    let has_adj = words.iter().any(udpipe_rs::Word::is_adjective);
     assert!(has_adj, "Should have at least one adjective");
 
     // Test is_punct - "." should be punctuation
-    let has_punct = words.iter().any(|w| w.is_punct());
+    let has_punct = words.iter().any(udpipe_rs::Word::is_punct);
     assert!(has_punct, "Should have punctuation");
 }
 
