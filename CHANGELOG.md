@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/ccostello97/udpipe-rs/compare/v0.1.8...v0.2.0) (2026-01-25)
+
+
+### Features
+
+* add CI sanitizers, benchmarks, and coverage improvements ([#29](https://github.com/ccostello97/udpipe-rs/issues/29)) ([fa936a5](https://github.com/ccostello97/udpipe-rs/commit/fa936a5fc0ec79dfac3eff74a31872a9d010fc3d))
+
+
+### Bug Fixes
+
+* enable llvm-header-guard lint ([877a40c](https://github.com/ccostello97/udpipe-rs/commit/877a40cd471e5ad0e86b70117539367c9d5cbd9b))
+* enforce consistent llvm 18 clang tools ([81a90d6](https://github.com/ccostello97/udpipe-rs/commit/81a90d62a4d199eb812c6c35ba3cb835e5e8ef8f))
+* improve makefile ([6fec4b6](https://github.com/ccostello97/udpipe-rs/commit/6fec4b626f4c23f1f6102c2b0f451e61388d4a88))
+* update ci yaml ([1db96bd](https://github.com/ccostello97/udpipe-rs/commit/1db96bdbfacbc754a3b3f272d6aee610b2395fe2))
+
 ## [0.1.8](https://github.com/ccostello97/udpipe-rs/compare/v0.1.7...v0.1.8) (2025-12-28)
 
 
