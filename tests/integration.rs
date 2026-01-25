@@ -12,8 +12,8 @@ use std::sync::{Mutex, OnceLock};
 
 const MODEL_LANGUAGE: &str = "english-ewt";
 
-// Model is wrapped in Mutex because UDPipe is not thread-safe for concurrent access.
-// Tests acquire the lock to ensure exclusive access during parsing.
+// Model is wrapped in Mutex because UDPipe is not thread-safe for concurrent
+// access. Tests acquire the lock to ensure exclusive access during parsing.
 static MODEL: OnceLock<(tempfile::TempDir, Mutex<udpipe_rs::Model>)> = OnceLock::new();
 
 /// Parse text with the shared model, releasing the lock immediately after.
