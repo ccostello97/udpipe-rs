@@ -52,7 +52,9 @@ fn main() {
     let sanitizer_enabled = asan_enabled || tsan_enabled;
 
     if coverage_enabled {
+        // Coverage flags are Clang-specific, so force clang++
         build
+            .compiler("clang++")
             .flag("-fprofile-instr-generate")
             .flag("-fcoverage-mapping")
             .flag("-O0")

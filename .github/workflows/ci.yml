@@ -83,7 +83,7 @@ jobs:
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
-      - uses: taiki-e/install-action@v2.67.8
+      - uses: taiki-e/install-action@v2.67.9
         with:
           tool: cargo-msrv
       - name: Verify MSRV
@@ -140,7 +140,7 @@ jobs:
         with:
           toolchain: nightly
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@v2.67.8
+      - uses: taiki-e/install-action@v2.67.9
         with:
           tool: cargo-llvm-cov
       - name: Generate report
@@ -196,7 +196,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.8
+      - uses: taiki-e/install-action@v2.67.9
         with:
           tool: cargo-udeps
       - name: Find unused
@@ -212,7 +212,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.8
+      - uses: taiki-e/install-action@v2.67.9
         with:
           tool: cargo-outdated
       - name: Find outdated
@@ -229,7 +229,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.8
+      - uses: taiki-e/install-action@v2.67.9
         with:
           tool: cargo-hack
       - name: Check powerset
@@ -239,27 +239,24 @@ jobs:
     name: Benchmarks
     needs: [format, lint]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.base_ref }}
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.8
+      - uses: taiki-e/install-action@v2.67.9
         with:
           tool: critcmp
-      - name: Benchmark base
-        run: cargo bench -- --save-baseline base
-      - name: Checkout PR
-        uses: actions/checkout@v4
+      - name: Cache baseline
+        uses: actions/cache@v4
         with:
-          ref: ${{ github.head_ref }}
-          submodules: true
-          clean: false
-      - name: Benchmark PR
-        run: cargo bench -- --save-baseline pr
-      - name: Check for regression (5% threshold)
-        run: critcmp base pr --threshold 5
+          path: target/criterion
+          key: criterion-${{ runner.os }}-${{ github.sha }}
+          restore-keys: criterion-${{ runner.os }}-
+      - name: Run benchmarks
+        run: cargo bench -- --save-baseline ${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
+      - name: Compare against baseline
+        if: github.event_name == 'pull_request'
+        run: critcmp main pr --threshold 5
