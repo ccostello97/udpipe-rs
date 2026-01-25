@@ -54,6 +54,10 @@ unseparated_literal_suffix = "deny"
 [lib]
 bench = false
 
+[package.metadata.llvm-cov]
+ignore-filename-regex = "vendor/.*"
+fail-under-functions = 100
+
 [build-dependencies]
 cc = "1.2.54"
 

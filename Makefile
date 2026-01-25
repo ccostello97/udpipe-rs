@@ -99,15 +99,15 @@ bench: docker ## Run benchmarks
 
 .PHONY: coverage
 coverage: docker ## Run tests with coverage (enforces 100% function coverage)
-	$(DOCKER_RUN) cargo llvm-cov --ignore-filename-regex 'vendor/.*' --fail-under-functions 100
+	$(DOCKER_RUN) cargo llvm-cov
 
 .PHONY: coverage-lcov
 coverage-lcov: coverage ## Generate LCOV coverage report
-	$(DOCKER_RUN) cargo llvm-cov report --ignore-filename-regex 'vendor/.*' --lcov --output-path lcov.info
+	$(DOCKER_RUN) cargo llvm-cov report --lcov --output-path lcov.info
 
 .PHONY: coverage-html
 coverage-html: coverage ## Generate HTML coverage report and open in browser
-	$(DOCKER_RUN) cargo llvm-cov report --ignore-filename-regex 'vendor/.*' --html
+	$(DOCKER_RUN) cargo llvm-cov report --html
 	open target/llvm-cov/html/index.html || xdg-open target/llvm-cov/html/index.html
 
 ### Sanitizers
