@@ -51,6 +51,9 @@ verbose_file_reads = "deny"
 single_call_fn = "deny"
 unseparated_literal_suffix = "deny"
 
+[lib]
+bench = false
+
 [build-dependencies]
 cc = "1.2.54"
 
