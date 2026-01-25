@@ -26,7 +26,7 @@ env:
 
 jobs:
   format:
-    name: Format
+    name: Format check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.1
@@ -40,7 +40,7 @@ jobs:
         run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
 
   lint:
-    name: Lint
+    name: Lint check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.1
