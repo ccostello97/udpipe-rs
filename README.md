@@ -32,7 +32,7 @@ Rust bindings for [UDPipe](https://ufal.mff.cuni.cz/udpipe) — a trainable pipe
 - **Full parsing pipeline**: Tokenization, POS tagging, lemmatization, and dependency parsing
 - **Universal Dependencies**: Output follows the [UD annotation scheme](https://universaldependencies.org/)
 - **Model download utility**: Easy download of pre-trained models for 65+ languages (optional)
-- **Thread-safe**: Models can be shared across threads
+- **Thread-friendly**: Models are `Send` (can be moved between threads)
 
 ## Installation
 
@@ -170,6 +170,42 @@ download_model_from_url(
 ).expect("Failed to download");
 ```
 
+## Thread Safety
+
+`Model` is `Send` but not `Sync`. This means:
+
+- **You can move** a model to another thread (ownership transfer)
+- **You cannot share** `&Model` across threads simultaneously
+
+For concurrent access, either:
+
+**Option 1: Wrap in `Mutex`** (shared model, serialized access)
+
+```rust
+use std::sync::{Arc, Mutex};
+use udpipe_rs::Model;
+
+let model = Arc::new(Mutex::new(Model::load("model.udpipe")?));
+
+// Clone Arc for each thread
+let model_clone = Arc::clone(&model);
+std::thread::spawn(move || {
+    let guard = model_clone.lock().unwrap();
+    let words = guard.parse("Hello world").unwrap();
+});
+```
+
+**Option 2: Separate models per thread** (parallel access, higher memory)
+
+```rust
+use udpipe_rs::Model;
+
+std::thread::spawn(|| {
+    let model = Model::load("model.udpipe").unwrap();
+    let words = model.parse("Hello world").unwrap();
+});
+```
+
 ## API Reference
 
 ### `Word` struct
@@ -216,11 +252,11 @@ cargo run --example parse_text -- "Your text here."
 
 Pre-trained models for 100+ treebanks are available from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131). The `download_model` function fetches from this repository automatically.
 
-## Build requirements
+## Requirements
 
-- C++ compiler with C++11 support
+**For users:** A C++ compiler with C++11 support. The build script compiles UDPipe as a static library automatically.
 
-The build script automatically downloads the UDPipe source code and compiles it as a static library. No external tools are required.
+**For contributors:** Just Docker. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 

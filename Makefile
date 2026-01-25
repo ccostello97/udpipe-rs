@@ -1,94 +1,143 @@
 .DEFAULT_GOAL := help
+.SILENT:
 
-CXX_FILES := $(shell find src include -name '*.cpp' -o -name '*.h')
+CXX_GLOB := find src include -name '*.cpp' -o -name '*.h'
+DOCKER_IMAGE := udpipe-rs-dev
+DOCKER_RUN := docker run --rm -v $(CURDIR):/workspace -w /workspace $(DOCKER_IMAGE)
 
 .PHONY: help
 help:
-	@echo "Usage: make [target]"
-	@awk 'BEGIN {FS = ":.*##"} /^### / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)} /^[a-zA-Z_-]+:.*##/ {printf " %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	echo "Usage: make [target]"
+	awk 'BEGIN {FS = ":.*##"} /^### / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)} /^[a-zA-Z_-]+:.*##/ {printf " %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+### Setup
+
+.PHONY: docker
+docker: ## Build the development Docker image
+	docker image inspect $(DOCKER_IMAGE) >/dev/null 2>&1 || docker build -t $(DOCKER_IMAGE) .
+
+.PHONY: docker-rebuild
+docker-rebuild: ## Force rebuild the Docker image
+	docker build -t $(DOCKER_IMAGE) .
+
+.PHONY: shell
+shell: docker ## Open a shell in the Docker container
+	docker run --rm -it -v $(CURDIR):/workspace -w /workspace $(DOCKER_IMAGE) bash
 
 ### Build
 
 .PHONY: build
-build: ## Compile the project in debug mode
-	cargo build
+build: docker ## Compile the project in debug mode
+	$(DOCKER_RUN) cargo build
 
 .PHONY: docs
-docs: ## Build and open API documentation
-	cargo doc --open --no-deps
+docs: docker ## Build and open API documentation
+	$(DOCKER_RUN) cargo doc --no-deps
+	open target/doc/udpipe_rs/index.html || xdg-open target/doc/udpipe_rs/index.html
 
 ### Fix
 
 .PHONY: lint
-lint: dev ## Auto-fix linter warnings
-	-cargo clippy --fix --allow-dirty --allow-staged
-	-clang-tidy --fix $(CXX_FILES)
+lint: docker ## Auto-fix linter warnings
+	-$(DOCKER_RUN) sh -c 'cargo clippy --fix --allow-dirty --allow-staged && $(CXX_GLOB) | xargs clang-tidy-18 --fix'
 
 .PHONY: fmt
-fmt: dev ## Auto-format code
-	cargo +nightly fmt
-	clang-format -i $(CXX_FILES)
+fmt: docker ## Auto-format code
+	$(DOCKER_RUN) sh -c 'cargo fmt && $(CXX_GLOB) | xargs clang-format-18 -i'
 
 .PHONY: fix
-fix: lint fmt ## Apply all automatic fixes
+fix: lint fmt ## Apply all automatic fixes (lint + format)
 
 ### Check
 
 .PHONY: lint-check
-lint-check: dev ## Verify no linter warnings
-	cargo clippy -- -D warnings
-	clang-tidy $(CXX_FILES)
+lint-check: docker ## Verify no linter warnings
+	$(DOCKER_RUN) sh -c 'cargo clippy --all-targets --all-features -- -D warnings && $(CXX_GLOB) | xargs clang-tidy-18'
 
 .PHONY: fmt-check
-fmt-check: dev ## Verify code formatting
-	cargo +nightly fmt -- --check
-	clang-format --dry-run --Werror $(CXX_FILES)
-
-.PHONY: type-check
-type-check: ## Check for type errors
-	cargo check --all-targets
+fmt-check: docker ## Verify code formatting
+	$(DOCKER_RUN) sh -c 'cargo fmt -- --check && $(CXX_GLOB) | xargs clang-format-18 --dry-run --Werror'
 
 .PHONY: docs-check
-docs-check: ## Check documentation for warnings
-	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+docs-check: docker ## Check documentation for warnings
+	$(DOCKER_RUN) sh -c 'RUSTDOCFLAGS="-D warnings" cargo doc --no-deps'
 
 .PHONY: audit
-audit: dev ## Check dependencies for security vulnerabilities
-	cargo audit
+audit: docker ## Check dependencies for security vulnerabilities
+	$(DOCKER_RUN) cargo audit
+
+.PHONY: deny
+deny: docker ## Check licenses and dependency bans
+	$(DOCKER_RUN) cargo deny check
+
+.PHONY: lockfile
+lockfile: docker ## Verify lockfile is up-to-date
+	$(DOCKER_RUN) cargo update --locked --workspace
+
+.PHONY: unused-deps
+unused-deps: docker ## Find unused dependencies
+	$(DOCKER_RUN) cargo udeps --all-targets
+
+.PHONY: outdated-deps
+outdated-deps: docker ## Find outdated dependencies
+	$(DOCKER_RUN) cargo outdated --exit-code 1
 
 .PHONY: compat
-compat: dev ## Verify minimum supported Rust version (MSRV)
-	cargo msrv verify
+compat: docker ## Verify minimum supported Rust version (MSRV)
+	$(DOCKER_RUN) cargo msrv verify
 
 .PHONY: test
-test: dev ## Run tests (without checking coverage)
-	cargo test
+test: docker ## Run tests
+	$(DOCKER_RUN) cargo test
+
+.PHONY: hack
+hack: docker ## Test all feature combinations
+	$(DOCKER_RUN) cargo hack test --feature-powerset --all-targets --workspace
+
+.PHONY: bench
+bench: docker ## Run benchmarks
+	$(DOCKER_RUN) cargo bench
 
 .PHONY: coverage
-coverage: dev ## Run tests and enforce 100% function coverage
-	cargo llvm-cov --fail-under-functions 100
-	cargo llvm-cov report --lcov --output-path lcov.info
-	cargo llvm-cov report --html --open
+coverage: docker ## Run tests with coverage (enforces 100% function coverage)
+	$(DOCKER_RUN) cargo llvm-cov -- --test-threads=1
+
+.PHONY: coverage-lcov
+coverage-lcov: coverage ## Generate LCOV coverage report
+	$(DOCKER_RUN) cargo llvm-cov report --lcov --output-path lcov.info
+
+.PHONY: coverage-html
+coverage-html: coverage ## Generate HTML coverage report and open in browser
+	$(DOCKER_RUN) cargo llvm-cov report --html
+	open target/llvm-cov/html/index.html || xdg-open target/llvm-cov/html/index.html
+
+.PHONY: asan
+asan: docker ## Run tests with AddressSanitizer + UndefinedBehaviorSanitizer
+	$(DOCKER_RUN) sh -c 'cargo clean && RUSTFLAGS="-Z sanitizer=address" cargo test --lib --tests --target $$(rustc -vV | grep host | cut -d" " -f2) && cargo clean'
+
+.PHONY: tsan
+tsan: docker ## Run tests with ThreadSanitizer + UndefinedBehaviorSanitizer
+	$(DOCKER_RUN) sh -c 'cargo clean && RUSTFLAGS="-Z sanitizer=thread" cargo test -Zbuild-std --lib --tests --target $$(rustc -vV | grep host | cut -d" " -f2) && cargo clean'
+
+.PHONY: sanitize
+sanitize: asan tsan ## Run all sanitizer checks (ASAN+UBSAN, TSAN+UBSAN)
+
+.PHONY: miri
+miri: docker ## Run Miri to detect undefined behavior in Rust code
+	$(DOCKER_RUN) cargo miri test --lib
 
 .PHONY: check
-check: lint-check fmt-check type-check docs-check audit compat coverage ## Run all checks
+check: lint-check fmt-check docs-check audit deny lockfile unused-deps outdated-deps compat hack bench coverage sanitize ## Run all checks
 
 ### Utilities
 
-.PHONY: dev
-dev: ## Install required development tools
-	rustup component add clippy rustfmt llvm-tools-preview
-	cargo install --locked cargo-audit cargo-msrv cargo-llvm-cov
-	clang-format --version 2>/dev/null | grep -q "version 18" || (echo "Error: clang-format 18 required (see CONTRIBUTING.md)" && exit 1)
-	clang-tidy --version 2>/dev/null | grep -q "version 18" || (echo "Error: clang-tidy 18 required (see CONTRIBUTING.md)" && exit 1)
-
 .PHONY: update
-update: ## Update dependencies to latest compatible versions
-	cargo update
+update: docker ## Update dependencies to latest compatible versions
+	$(DOCKER_RUN) cargo update
 
 .PHONY: clean
-clean: ## Remove build artifacts and caches
-	cargo clean
+clean: ## Remove build artifacts
+	rm -rf target
 
 .PHONY: all
 all: fix check ## Run all fixes followed by all checks
