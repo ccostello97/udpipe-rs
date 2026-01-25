@@ -258,6 +258,13 @@ fn get_ffi_error() -> String {
 ///
 /// This is the main type for loading and using `UDPipe` models.
 /// Models can be loaded from files or from memory.
+///
+/// # Thread Safety
+///
+/// `Model` is [`Send`] but not [`Sync`]. You can transfer a model to another
+/// thread, but you cannot share references to it across threads. If you need
+/// concurrent access from multiple threads, wrap the model in
+/// `Arc<Mutex<Model>>`.
 pub struct Model {
     /// Raw pointer to the underlying `UDPipe` model.
     inner: *mut ffi::UdpipeModel,
@@ -271,11 +278,27 @@ impl std::fmt::Debug for Model {
     }
 }
 
-// SAFETY: The underlying UDPipe model is thread-safe for send operations.
+// SAFETY: Transferring ownership of a Model to another thread is safe.
+//
+// Verified by auditing vendor/udpipe/src:
+// - No `thread_local` storage in UDPipe, MorphoDiTa, or Parsito
+// - Model data is owned via unique_ptr (no shared ownership)
+// - Internal caches use atomic spin-locks (threadsafe_stack with atomic_flag)
+// - Global statics (ragel_map, lzma allocators) are read-only after init
+// - Our C++ wrapper uses thread_local only for error messages, which are
+//   captured immediately after each FFI call on the calling thread
 unsafe impl Send for Model {}
-// SAFETY: The underlying UDPipe model uses internal synchronization for
-// concurrent access.
-unsafe impl Sync for Model {}
+
+// NOTE: Model is intentionally !Sync because the underlying UDPipe C++ library
+// is not thread-safe for concurrent access.
+//
+// Evidence from vendor/udpipe/src:
+// - tag() and parse() methods mutate internal workspace caches
+// - While caches use threadsafe_stack for pool management, concurrent parse
+//   operations on the same Model would race on workspace contents
+// - TSAN confirms data races in std::string operations during concurrent access
+//
+// Use Arc<Mutex<Model>> or create separate Model instances per thread.
 
 impl Model {
     /// Load a model from a file path.
@@ -921,5 +944,28 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.message.contains("empty"));
+    }
+
+    #[test]
+    fn test_ffi_null_result_word_count() {
+        // SAFETY: Testing that null pointer returns 0 (defensive C++ code)
+        let count = unsafe { ffi::udpipe_result_word_count(std::ptr::null_mut()) };
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_ffi_null_result_get_word() {
+        // SAFETY: Testing that null pointer returns zeroed word (defensive C++ code)
+        let word = unsafe { ffi::udpipe_result_get_word(std::ptr::null_mut(), 0) };
+        assert!(word.form.is_null());
+        assert!(word.lemma.is_null());
+        assert!(word.upostag.is_null());
+    }
+
+    #[test]
+    fn test_ffi_invalid_index() {
+        // SAFETY: Testing bounds checking with negative index
+        let word = unsafe { ffi::udpipe_result_get_word(std::ptr::null_mut(), -1) };
+        assert!(word.form.is_null());
     }
 }

@@ -8,31 +8,41 @@
     reason = "tests use stderr for diagnostic output"
 )]
 
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 const MODEL_LANGUAGE: &str = "english-ewt";
 
-static MODEL: OnceLock<(tempfile::TempDir, udpipe_rs::Model)> = OnceLock::new();
+/// Shared model state: temp directory, model file path, and the model wrapped
+/// in Mutex. Model is wrapped in Mutex because `UDPipe` is not thread-safe for
+/// concurrent access.
+static MODEL: OnceLock<(tempfile::TempDir, String, Mutex<udpipe_rs::Model>)> = OnceLock::new();
 
-fn get_model() -> &'static udpipe_rs::Model {
-    &MODEL
-        .get_or_init(|| {
-            let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+/// Initialize the shared model and return a reference to its state.
+fn get_model_state() -> &'static (tempfile::TempDir, String, Mutex<udpipe_rs::Model>) {
+    MODEL.get_or_init(|| {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
 
-            eprintln!("Downloading {MODEL_LANGUAGE} model for integration tests...");
-            let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
-                .expect("Failed to download model for integration tests");
+        eprintln!("Downloading {MODEL_LANGUAGE} model for integration tests...");
+        let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
+            .expect("Failed to download model for integration tests");
 
-            let model = udpipe_rs::Model::load(&model_path).expect("Failed to load model");
-            (temp_dir, model)
-        })
-        .1
+        let model = udpipe_rs::Model::load(&model_path).expect("Failed to load model");
+        (temp_dir, model_path, Mutex::new(model))
+    })
+}
+
+/// Parse text with the shared model, releasing the lock immediately after.
+fn parse(text: &str) -> Result<Vec<udpipe_rs::Word>, udpipe_rs::UdpipeError> {
+    get_model_state()
+        .2
+        .lock()
+        .expect("Model mutex poisoned")
+        .parse(text)
 }
 
 #[test]
 fn test_parse_simple_sentence() {
-    let model = get_model();
-    let words = model.parse("Hello world!").expect("Failed to parse");
+    let words = parse("Hello world!").expect("Failed to parse");
 
     assert!(!words.is_empty());
     assert!(words.iter().any(|w| w.form == "Hello"));
@@ -41,10 +51,7 @@ fn test_parse_simple_sentence() {
 
 #[test]
 fn test_parse_multiple_sentences() {
-    let model = get_model();
-    let words = model
-        .parse("The cat sat. The dog ran.")
-        .expect("Failed to parse");
+    let words = parse("The cat sat. The dog ran.").expect("Failed to parse");
 
     // Should have words from both sentences
     assert!(words.len() >= 6);
@@ -57,10 +64,7 @@ fn test_parse_multiple_sentences() {
 
 #[test]
 fn test_word_ids_are_sequential() {
-    let model = get_model();
-    let words = model
-        .parse("The quick brown fox.")
-        .expect("Failed to parse");
+    let words = parse("The quick brown fox.").expect("Failed to parse");
 
     assert!(!words.is_empty(), "Should have parsed words");
 
@@ -72,8 +76,7 @@ fn test_word_ids_are_sequential() {
 
 #[test]
 fn test_dependency_structure() {
-    let model = get_model();
-    let words = model.parse("The cat sleeps.").expect("Failed to parse");
+    let words = parse("The cat sleeps.").expect("Failed to parse");
 
     // Should have exactly one root
     let roots: Vec<_> = words.iter().filter(|w| w.is_root()).collect();
@@ -89,8 +92,7 @@ fn test_dependency_structure() {
 
 #[test]
 fn test_morphological_features() {
-    let model = get_model();
-    let words = model.parse("She runs quickly.").expect("Failed to parse");
+    let words = parse("She runs quickly.").expect("Failed to parse");
 
     // Find the verb "runs"
     let verb = words.iter().find(|w| w.lemma == "run");
@@ -107,27 +109,21 @@ fn test_morphological_features() {
 
 #[test]
 fn test_empty_input() {
-    let model = get_model();
-    let words = model.parse("").expect("Should handle empty input");
+    let words = parse("").expect("Should handle empty input");
 
     assert!(words.is_empty(), "Empty input should produce no words");
 }
 
 #[test]
 fn test_unicode_input() {
-    let model = get_model();
-
     // Test with various Unicode characters
-    let words = model
-        .parse("Héllo wörld! 你好")
-        .expect("Should handle Unicode");
+    let words = parse("Héllo wörld! 你好").expect("Should handle Unicode");
     assert!(!words.is_empty());
 }
 
 #[test]
 fn test_misc_field_space_after() {
-    let model = get_model();
-    let words = model.parse("Hello, world!").expect("Failed to parse");
+    let words = parse("Hello, world!").expect("Failed to parse");
 
     // Most words have space after, some (before punctuation) don't
     let has_space = words.iter().filter(|w| w.has_space_after()).count();
@@ -143,8 +139,7 @@ fn test_misc_field_space_after() {
 
 #[test]
 fn test_xpostag_field() {
-    let model = get_model();
-    let words = model.parse("The cat sleeps.").expect("Failed to parse");
+    let words = parse("The cat sleeps.").expect("Failed to parse");
 
     assert!(!words.is_empty(), "Should have parsed words");
 
@@ -157,8 +152,7 @@ fn test_xpostag_field() {
 
 #[test]
 fn test_parse_with_null_byte() {
-    let model = get_model();
-    let result = model.parse("Hello\0world");
+    let result = parse("Hello\0world");
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(err.message.contains("null byte"));
@@ -166,13 +160,11 @@ fn test_parse_with_null_byte() {
 
 #[test]
 fn test_load_from_memory() {
-    // First download the model to get a valid file
-    let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
-    let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
-        .expect("Failed to download model");
+    // Use the shared model's file path (avoids duplicate downloads)
+    let model_path = &get_model_state().1;
 
     // Read model into memory
-    let model_data = std::fs::read(&model_path).expect("Failed to read model file");
+    let model_data = std::fs::read(model_path).expect("Failed to read model file");
 
     // Load from memory
     let model =
@@ -186,10 +178,39 @@ fn test_load_from_memory() {
 #[test]
 fn test_model_drop() {
     // Test explicit drop to help coverage track the Drop impl
-    let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
-    let model_path = udpipe_rs::download_model(MODEL_LANGUAGE, temp_dir.path())
-        .expect("Failed to download model");
+    // Use the shared model's file path (avoids duplicate downloads)
+    let model_path = &get_model_state().1;
 
-    let model = udpipe_rs::Model::load(&model_path).expect("Failed to load model");
+    let model = udpipe_rs::Model::load(model_path).expect("Failed to load model");
     drop(model); // Explicit drop - coverage tools sometimes miss implicit drops
+}
+
+#[test]
+fn test_word_pos_helpers() {
+    let words = parse("The quick brown fox jumps.").expect("Failed to parse");
+
+    // Test is_noun - "fox" should be a noun
+    let has_noun = words.iter().any(udpipe_rs::Word::is_noun);
+    assert!(has_noun, "Should have at least one noun");
+
+    // Test is_adjective - "quick" and "brown" should be adjectives
+    let has_adj = words.iter().any(udpipe_rs::Word::is_adjective);
+    assert!(has_adj, "Should have at least one adjective");
+
+    // Test is_punct - "." should be punctuation
+    let has_punct = words.iter().any(udpipe_rs::Word::is_punct);
+    assert!(has_punct, "Should have punctuation");
+}
+
+#[test]
+fn test_word_get_feature() {
+    let words = parse("She runs.").expect("Failed to parse");
+
+    // Find a word with features
+    let word_with_feats = words.iter().find(|w| !w.feats.is_empty());
+    if let Some(word) = word_with_feats {
+        // Try to get a feature - may or may not exist
+        let _ = word.get_feature("Number");
+        let _ = word.get_feature("NonExistent");
+    }
 }
