@@ -8,14 +8,16 @@
     reason = "tests use stderr for diagnostic output"
 )]
 
-use std::sync::OnceLock;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 const MODEL_LANGUAGE: &str = "english-ewt";
 
-static MODEL: OnceLock<(tempfile::TempDir, udpipe_rs::Model)> = OnceLock::new();
+// Model is wrapped in Mutex because UDPipe is not thread-safe for concurrent access.
+// Tests acquire the lock to ensure exclusive access during parsing.
+static MODEL: OnceLock<(tempfile::TempDir, Mutex<udpipe_rs::Model>)> = OnceLock::new();
 
-fn get_model() -> &'static udpipe_rs::Model {
-    &MODEL
+fn get_model() -> MutexGuard<'static, udpipe_rs::Model> {
+    MODEL
         .get_or_init(|| {
             let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
 
@@ -24,9 +26,11 @@ fn get_model() -> &'static udpipe_rs::Model {
                 .expect("Failed to download model for integration tests");
 
             let model = udpipe_rs::Model::load(&model_path).expect("Failed to load model");
-            (temp_dir, model)
+            (temp_dir, Mutex::new(model))
         })
         .1
+        .lock()
+        .expect("Model mutex poisoned")
 }
 
 #[test]

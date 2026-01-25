@@ -118,7 +118,7 @@ asan: docker ## Run tests with AddressSanitizer + UndefinedBehaviorSanitizer
 
 .PHONY: tsan
 tsan: docker ## Run tests with ThreadSanitizer + UndefinedBehaviorSanitizer
-	$(DOCKER_RUN) sh -c 'cargo clean && RUSTFLAGS="-Z sanitizer=thread" cargo test -Zbuild-std --lib --tests --target $$(rustc -vV | grep host | cut -d" " -f2) -- --test-threads=1 && cargo clean'
+	$(DOCKER_RUN) sh -c 'cargo clean && RUSTFLAGS="-Z sanitizer=thread" cargo test -Zbuild-std --lib --tests --target $$(rustc -vV | grep host | cut -d" " -f2) && cargo clean'
 
 .PHONY: sanitize
 sanitize: asan tsan ## Run all sanitizer checks (ASAN, then TSAN)

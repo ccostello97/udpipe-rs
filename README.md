@@ -32,7 +32,7 @@ Rust bindings for [UDPipe](https://ufal.mff.cuni.cz/udpipe) — a trainable pipe
 - **Full parsing pipeline**: Tokenization, POS tagging, lemmatization, and dependency parsing
 - **Universal Dependencies**: Output follows the [UD annotation scheme](https://universaldependencies.org/)
 - **Model download utility**: Easy download of pre-trained models for 65+ languages (optional)
-- **Thread-safe**: Models can be shared across threads
+- **Thread-friendly**: Models are `Send` (can be moved between threads)
 
 ## Installation
 
@@ -168,6 +168,42 @@ download_model_from_url(
     "https://example.com/custom-model.udpipe",
     "custom-model.udpipe",
 ).expect("Failed to download");
+```
+
+## Thread Safety
+
+`Model` is `Send` but not `Sync`. This means:
+
+- **You can move** a model to another thread (ownership transfer)
+- **You cannot share** `&Model` across threads simultaneously
+
+For concurrent access, either:
+
+**Option 1: Wrap in `Mutex`** (shared model, serialized access)
+
+```rust
+use std::sync::{Arc, Mutex};
+use udpipe_rs::Model;
+
+let model = Arc::new(Mutex::new(Model::load("model.udpipe")?));
+
+// Clone Arc for each thread
+let model_clone = Arc::clone(&model);
+std::thread::spawn(move || {
+    let guard = model_clone.lock().unwrap();
+    let words = guard.parse("Hello world").unwrap();
+});
+```
+
+**Option 2: Separate models per thread** (parallel access, higher memory)
+
+```rust
+use udpipe_rs::Model;
+
+std::thread::spawn(|| {
+    let model = Model::load("model.udpipe").unwrap();
+    let words = model.parse("Hello world").unwrap();
+});
 ```
 
 ## API Reference
