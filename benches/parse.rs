@@ -2,20 +2,20 @@
 //!
 //! Measures parsing throughput for short, medium, and long text inputs.
 
-#![allow(
-    clippy::print_stderr,
-    reason = "benchmarks use stderr for progress"
-)]
+#![allow(clippy::print_stderr, reason = "benchmarks use stderr for progress")]
 #![allow(
     clippy::single_call_fn,
     reason = "criterion requires single-call benchmark entry points"
 )]
-#![allow(missing_docs, reason = "criterion_main macro generates undocumented main")]
+#![allow(
+    missing_docs,
+    reason = "criterion_main macro generates undocumented main"
+)]
 
 use std::hint::black_box;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 /// Language model to download and use for benchmarks.
 const MODEL_LANGUAGE: &str = "english-ewt";
