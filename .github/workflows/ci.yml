@@ -105,6 +105,29 @@ jobs:
       - name: Build docs
         run: cargo doc --no-deps --all-features --workspace
 
+  sanitizers:
+    name: Sanitizers
+    needs: [format, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: true
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
+          components: rust-src
+      - name: Address sanitizer
+        run: cargo test --lib --tests --target x86_64-unknown-linux-gnu
+        env:
+          RUSTFLAGS: -Z sanitizer=address
+      - name: Clean
+        run: cargo clean
+      - name: Thread sanitizer
+        run: cargo test -Zbuild-std --lib --tests --target x86_64-unknown-linux-gnu
+        env:
+          RUSTFLAGS: -Z sanitizer=thread
+
   coverage:
     name: Coverage
     needs: [test]
