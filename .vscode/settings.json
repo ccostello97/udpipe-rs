@@ -3,37 +3,49 @@
   "editor.formatOnSave": true,
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
-
   // Language-specific formatting
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "editor.rulers": [100]
+    "editor.rulers": [
+      100
+    ]
   },
   "[toml]": {
     "editor.defaultFormatter": "tamasfe.even-better-toml",
   },
   "[cpp]": {
     "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
-    "editor.rulers": [80]
+    "editor.rulers": [
+      80
+    ]
   },
   "[c]": {
     "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
-    "editor.rulers": [80]
+    "editor.rulers": [
+      80
+    ]
   },
-
   // Rust Analyzer
   "rust-analyzer.check.command": "clippy",
   "rust-analyzer.cargo.features": "all",
   "rust-analyzer.imports.granularity.group": "module",
   "rust-analyzer.imports.prefix": "crate",
-
   // Explorer
   "files.associations": {
     "LICENSE-*": "plaintext"
   },
-
   // Performance
   "files.watcherExclude": {
     "**/target/**": true
-  }
+  },
+  // YAML schema validation
+  "yaml.schemas": {
+    "https://json.schemastore.org/clang-format-18.x.json": ".clang-format",
+    "https://www.schemastore.org/clang-tidy.json": ".clang-tidy"
+  },
+  // Coverage Gutters - remap Docker container paths to local workspace
+  "coverage-gutters.remotePathResolve": [
+    "/workspace/",
+    ""
+  ],
 }

@@ -39,9 +39,43 @@ fn main() {
 
     // Build UDPipe as a static library
     let mut build = cc::Build::new();
+    let target = env::var("TARGET").unwrap();
+    let rustflags = env::var("RUSTFLAGS").unwrap_or_default();
+
+    // Enable C++ coverage instrumentation on Linux when running under
+    // cargo-llvm-cov
+    let coverage_enabled = env::var("CARGO_LLVM_COV").is_ok() && target.contains("linux");
+
+    // Extract sanitizer value from RUSTFLAGS (e.g., "address" or "thread")
+    let sanitizer = rustflags
+        .split_whitespace()
+        .find_map(|flag| flag.strip_prefix("sanitizer="));
+
+    let instrumented = coverage_enabled || sanitizer.is_some();
+
+    if instrumented {
+        // Coverage and sanitizers need debug info and reduced optimization
+        build.flag("-O1").flag("-g");
+    }
+
+    if coverage_enabled {
+        // Coverage flags are Clang-specific (cc crate uses CXX env var)
+        build
+            .flag("-fprofile-instr-generate")
+            .flag("-fcoverage-mapping");
+    } else if let Some(sanitizer) = sanitizer {
+        // Forward Rust sanitizer to C++, plus UBSAN (Rust doesn't support UBSAN
+        // but C++ does, and it's compatible with ASAN/TSAN)
+        build
+            .flag("-fno-omit-frame-pointer")
+            .flag(format!("-fsanitize={sanitizer}"))
+            .flag("-fsanitize=undefined");
+    } else {
+        build.opt_level(2).define("NDEBUG", None);
+    }
+
     build
         .cpp(true)
-        .opt_level(2)
         .flag_if_supported("-std=c++11")
         .flag_if_supported("-w") // Suppress warnings from UDPipe
         .include(manifest_dir.join("include"))
@@ -53,8 +87,7 @@ fn main() {
         .include(src_dir.join("unilib"))
         .include(src_dir.join("utils"))
         .include(src_dir.join("tokenizer"))
-        .include(src_dir.join("trainer"))
-        .define("NDEBUG", None);
+        .include(src_dir.join("trainer"));
 
     for source in &sources {
         build.file(source);
@@ -66,7 +99,6 @@ fn main() {
     build.compile("udpipe");
 
     // Link C++ standard library
-    let target = env::var("TARGET").unwrap();
     if target.contains("apple") {
         println!("cargo:rustc-link-lib=c++");
     } else if target.contains("windows") && target.contains("msvc") {

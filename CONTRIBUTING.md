@@ -2,20 +2,30 @@
 
 ## Getting Started
 
-**Prerequisites:** Rust 1.85+, a C++11 compiler, LLVM 18 (`clang-format`, `clang-tidy`), and Git.
+**Prerequisites:** Docker and Git.
 
 ```bash
 git clone --recurse-submodules https://github.com/ccostello97/udpipe-rs.git
 cd udpipe-rs
-make dev    # Install development tools
-make build  # Compile the project
+make docker  # Build the development container
+make build   # Compile the project
 ```
 
 > **Note:** The `--recurse-submodules` flag is required. UDPipe C++ source is vendored as a submodule in `vendor/udpipe`. If you forgot it, run `git submodule update --init`.
 
+All development happens inside Docker containers, ensuring consistent tooling (Rust nightly, LLVM 18, cargo tools) across all platforms.
+
 ## Makefile Targets
 
 Run `make help` to list all targets, organized by category:
+
+### Setup
+
+| Target           | Description                          |
+| ---------------- | ------------------------------------ |
+| `docker`         | Build the development Docker image   |
+| `docker-rebuild` | Force rebuild the Docker image       |
+| `shell`          | Open a shell in the Docker container |
 
 ### Build
 
@@ -34,35 +44,36 @@ Run `make help` to list all targets, organized by category:
 
 ### Check
 
-| Target       | Description                                     |
-| ------------ | ----------------------------------------------- |
-| `lint-check` | Check for linter warnings (Clippy + clang-tidy) |
-| `fmt-check`  | Check code formatting (rustfmt + clang-format)  |
-| `type-check` | Check for type errors                           |
-| `docs-check` | Check documentation for warnings                |
-| `audit`      | Check dependencies for security vulnerabilities |
-| `compat`     | Verify minimum supported Rust version (MSRV)    |
-| `coverage`   | Run tests and enforce 100% function coverage    |
-| `check`      | Run all checks (required before PR)             |
+| Target         | Description                                     |
+| -------------- | ----------------------------------------------- |
+| `lint-check`   | Check for linter warnings (Clippy + clang-tidy) |
+| `fmt-check`    | Check code formatting (rustfmt + clang-format)  |
+| `docs-check`   | Check documentation for warnings                |
+| `audit`        | Check dependencies for security vulnerabilities |
+| `deny`         | Check licenses and dependency bans              |
+| `lockfile`     | Verify lockfile is up-to-date                   |
+| `unused-deps`  | Find unused dependencies                        |
+| `outdated-deps`| Find outdated dependencies                      |
+| `compat`       | Verify minimum supported Rust version (MSRV)    |
+| `test`         | Run tests                                       |
+| `hack`         | Test all feature combinations                   |
+| `bench`        | Run benchmarks                                  |
+| `coverage`     | Run tests and enforce 100% function coverage    |
+| `coverage-lcov`| Generate LCOV coverage report                   |
+| `coverage-html`| Generate HTML coverage report and open          |
+| `check`        | Run all checks (required before PR)             |
 
 ### Utilities
 
 | Target   | Description                              |
 | -------- | ---------------------------------------- |
-| `dev`    | Install required development tools       |
 | `update` | Update dependencies to latest compatible |
-| `clean`  | Remove build artifacts and caches        |
+| `clean`  | Remove build artifacts                   |
 | `all`    | Run all fixes followed by all checks     |
 
 ## Code Standards
 
-We use `rustfmt` (nightly) and `clippy` (warnings as errors) for Rust, and `clang-format` and `clang-tidy` (LLVM 18) for C++. Run `make fix` to auto-fix issues.
-
-> **Note:** LLVM 18 is required for consistent formatting. Install via:
->
-> - **macOS**: `brew install llvm@18`
-> - **Ubuntu/Debian**: `apt install clang-format-18 clang-tidy-18`
-> - **Other**: [LLVM releases](https://github.com/llvm/llvm-project/releases/tag/llvmorg-18.1.8)
+We use `rustfmt` (nightly) and `clippy` (warnings as errors) for Rust, and `clang-format-18` and `clang-tidy-18` for C++. Run `make fix` to auto-fix issues.
 
 All public items require documentation with examples where appropriate:
 
@@ -79,10 +90,12 @@ pub fn parse(input: &str) -> Vec<Token> { /* ... */ }
 
 ## Tests
 
-Unit tests live in `src/lib.rs` under `#[cfg(test)]`. Integration tests in `tests/integration.rs` download real models and exercise the full pipeline.
+Unit tests live in `src/lib.rs` under `#[cfg(test)]`. Integration tests in `tests/integration.rs` download real models and exercise the full pipeline. Benchmarks are in `benches/parsing.rs`.
 
 ```bash
-make coverage  # Run all tests with coverage (opens HTML report)
+make test      # Run all tests
+make coverage  # Run tests with coverage enforcement
+make bench     # Run benchmarks
 ```
 
 The coverage target enforces 100% function coverage.
