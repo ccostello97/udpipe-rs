@@ -51,8 +51,15 @@ verbose_file_reads = "deny"
 single_call_fn = "deny"
 unseparated_literal_suffix = "deny"
 
+[lib]
+bench = false
+
+[package.metadata.llvm-cov]
+ignore-filename-regex = "vendor/.*"
+fail-under-functions = 100
+
 [build-dependencies]
-cc = "1.2.51"
+cc = "1.2.54"
 
 [dependencies]
 ureq = "3.1"
@@ -60,3 +67,8 @@ ureq = "3.1"
 [dev-dependencies]
 tempfile = "3.15"
 mockito = "1.7"
+criterion = "0.8.1"
+
+[[bench]]
+name = "parse"
+harness = false
