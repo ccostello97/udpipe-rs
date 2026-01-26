@@ -29,7 +29,7 @@ jobs:
     name: Format check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
@@ -43,7 +43,7 @@ jobs:
     name: Lint check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -65,7 +65,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, beta]
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -79,7 +79,7 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -96,7 +96,7 @@ jobs:
     env:
       RUSTDOCFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -117,7 +117,7 @@ jobs:
           - sanitizer: thread
             build-std: -Zbuild-std
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -134,7 +134,7 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -149,7 +149,7 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -175,7 +175,7 @@ jobs:
     name: Security audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: rustsec/audit-check@v2
@@ -186,7 +186,7 @@ jobs:
     name: Dependency compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: EmbarkStudios/cargo-deny-action@v2.0.15
@@ -195,7 +195,7 @@ jobs:
     name: Lockfile integrity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -208,7 +208,7 @@ jobs:
     name: Unused dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -224,7 +224,7 @@ jobs:
     name: Outdated dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -241,7 +241,7 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -258,7 +258,7 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
