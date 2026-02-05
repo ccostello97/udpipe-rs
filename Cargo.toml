@@ -62,7 +62,7 @@ fail-under-functions = 100
 cc = "1.2.55"
 
 [dependencies]
-ureq = "3.1"
+ureq = "3.2"
 
 [dev-dependencies]
 tempfile = "3.15"
