@@ -14,9 +14,11 @@ Checks: >
   portability-*,
   readability-*,
   -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-type-const-cast,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -hicpp-no-array-decay
+  -hicpp-no-array-decay,
+  -llvm-prefer-static-over-anonymous-namespace
 
 HeaderFilterRegex: ".*/udpipe-rs/(src|include)/.*"
 WarningsAsErrors: "*"

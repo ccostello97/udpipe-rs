@@ -2,78 +2,93 @@
 
 ## Getting Started
 
-**Prerequisites:** Docker and Git.
+**Prerequisites:** Git, and either Docker (for Dev Containers) or a local Rust + LLVM toolchain.
 
-```bash
-git clone --recurse-submodules https://github.com/ccostello97/udpipe-rs.git
-cd udpipe-rs
-make docker  # Build the development container
-make build   # Compile the project
-```
+### Recommended: Open in Dev Container
 
-> **Note:** The `--recurse-submodules` flag is required. UDPipe C++ source is vendored as a submodule in `vendor/udpipe`. If you forgot it, run `git submodule update --init`.
+The project provides a [Dev Container](https://containers.dev/) with all dependencies (Rust nightly, Clang 21, clang-format, clang-tidy, cargo tools). No need to install anything locally.
 
-All development happens inside Docker containers, ensuring consistent tooling (Rust nightly, LLVM 18, cargo tools) across all platforms.
+1. **Clone with submodules** (required — C++ source is in `vendor/udpipe`):
 
-## Makefile Targets
+   ```bash
+   git clone --recurse-submodules https://github.com/ccostello97/udpipe-rs.git
+   cd udpipe-rs
+   ```
 
-Run `make help` to list all targets, organized by category:
+   If you already cloned without submodules: `git submodule update --init`
 
-### Setup
+2. **Open in Dev Container**
+   - **VS Code / Cursor:** Install the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension, then use **“Reopen in Container”** from the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`), or click “Reopen in Container” when prompted after opening the folder.
+   - The container will build and open with the workspace at `/workspace`. All commands below run inside the container.
 
-| Target           | Description                          |
-| ---------------- | ------------------------------------ |
-| `docker`         | Build the development Docker image   |
-| `docker-rebuild` | Force rebuild the Docker image       |
-| `shell`          | Open a shell in the Docker container |
+3. **Build and verify**
+
+   ```bash
+   just build
+   just check
+   just test
+   ```
+
+### Without Dev Container
+
+If you prefer a local toolchain, you need Rust (nightly), Clang 21, `clang-format-21`, `clang-tidy-21`, and optionally `cargo-msrv`, `cargo-udeps`, `cargo-outdated`, `cargo-llvm-cov`, `cargo-hack`, `cargo-miri`. Then run the same `just` commands as above.
+
+## Justfile Commands
+
+Run `just` or `just --list` to see all commands.
 
 ### Build
 
-| Target  | Description                       |
-| ------- | --------------------------------- |
-| `build` | Compile the project in debug mode |
-| `docs`  | Build and open API documentation  |
+| Command              | Description     |
+|----------------------|-----------------|
+| `just build`         | Build (debug)   |
+| `just build-release` | Build (release) |
 
-### Fix
+### Fix (before committing)
 
-| Target | Description                      |
-| ------ | -------------------------------- |
-| `lint` | Apply automatic linter fixes     |
-| `fmt`  | Apply automatic formatting fixes |
-| `fix`  | Apply all automatic fixes        |
+| Command         | Description                                   |
+|-----------------|-----------------------------------------------|
+| `just fix`      | **Apply all automatic fixes** (lint + format) |
+| `just fix-lint` | Fix linter warnings (Clippy + clang-tidy)     |
+| `just fix-fmt`  | Fix formatting (rustfmt + clang-format)       |
 
-### Check
+### Check (CI-style, no modifications)
 
-| Target         | Description                                     |
-| -------------- | ----------------------------------------------- |
-| `lint-check`   | Check for linter warnings (Clippy + clang-tidy) |
-| `fmt-check`    | Check code formatting (rustfmt + clang-format)  |
-| `docs-check`   | Check documentation for warnings                |
-| `audit`        | Check dependencies for security vulnerabilities |
-| `deny`         | Check licenses and dependency bans              |
-| `lockfile`     | Verify lockfile is up-to-date                   |
-| `unused-deps`  | Find unused dependencies                        |
-| `outdated-deps`| Find outdated dependencies                      |
-| `compat`       | Verify minimum supported Rust version (MSRV)    |
-| `test`         | Run tests                                       |
-| `hack`         | Test all feature combinations                   |
-| `bench`        | Run benchmarks                                  |
-| `coverage`     | Run tests and enforce 100% function coverage    |
-| `coverage-lcov`| Generate LCOV coverage report                   |
-| `coverage-html`| Generate HTML coverage report and open          |
-| `check`        | Run all checks (required before PR)             |
+| Command                    | Description                              |
+|----------------------------|------------------------------------------|
+| `just check`               | **Format + lint checks** (fast pre-push) |
+| `just check-format`        | Check formatting only                    |
+| `just check-lint`          | Check lints only                         |
+| `just check-audit`         | Security audit                           |
+| `just check-deny`          | Licenses and dependency bans             |
+| `just check-lockfile`      | Lockfile up to date                      |
+| `just check-deps-unused`   | Unused dependencies                      |
+| `just check-deps-outdated` | Outdated dependencies                    |
+| `just check-msrv`          | MSRV compatibility                       |
 
-### Utilities
+### Test
 
-| Target   | Description                              |
-| -------- | ---------------------------------------- |
-| `update` | Update dependencies to latest compatible |
-| `clean`  | Remove build artifacts                   |
-| `all`    | Run all fixes followed by all checks     |
+| Command                  | Description                    |
+|--------------------------|--------------------------------|
+| `just test`              | Unit and integration tests     |
+| `just test-coverage`     | **Tests with coverage report** |
+| `just test-all-features` | All feature combinations       |
+| `just test-bench`        | Benchmarks                     |
+| `just test-asan`         | AddressSanitizer + UBSAN       |
+| `just test-tsan`         | ThreadSanitizer + UBSAN        |
+| `just test-miri`         | Miri (undefined behavior)      |
+
+### Docs & maintenance
+
+| Command       | Description             |
+|---------------|-------------------------|
+| `just docs`   | Build API documentation |
+| `just clean`  | Remove build artifacts  |
+| `just update` | Update dependencies     |
 
 ## Code Standards
 
-We use `rustfmt` (nightly) and `clippy` (warnings as errors) for Rust, and `clang-format-18` and `clang-tidy-18` for C++. Run `make fix` to auto-fix issues.
+We use `rustfmt` (nightly) and Clippy (warnings as errors) for Rust, and `clang-format-21` and `clang-tidy-21` for C++. Run **`just fix`** to auto-fix formatting and linter issues.
 
 All public items require documentation with examples where appropriate:
 
@@ -90,24 +105,53 @@ pub fn parse(input: &str) -> Vec<Token> { /* ... */ }
 
 ## Tests
 
-Unit tests live in `src/lib.rs` under `#[cfg(test)]`. Integration tests in `tests/integration.rs` download real models and exercise the full pipeline. Benchmarks are in `benches/parsing.rs`.
+Unit tests live in `src/lib.rs` under `#[cfg(test)]`. Integration tests in `tests/integration.rs` download real models and exercise the full pipeline. Benchmarks are in `benches/parse.rs`.
 
 ```bash
-make test      # Run all tests
-make coverage  # Run tests with coverage enforcement
-make bench     # Run benchmarks
+just test           # Run all tests
+just test-coverage  # Tests with coverage (lcov + HTML)
+just test-bench     # Benchmarks
 ```
 
-The coverage target enforces 100% function coverage.
+## Before Submitting a PR
 
-## Pull Requests
+Run these inside the Dev Container (or your environment with the same tools):
+
+1. **Auto-fix** so formatting and fixable lints are clean:
+
+   ```bash
+   just fix
+   ```
+
+2. **Checks** (what CI runs for format/lint):
+
+   ```bash
+   just check
+   ```
+
+3. **Tests and coverage:**
+
+   ```bash
+   just test-coverage
+   ```
+
+   Fix any failing tests or coverage regressions.
+
+4. Optionally run the full check suite (audit, deny, lockfile, MSRV, etc.):
+
+   ```bash
+   just check check-audit check-deny check-lockfile check-msrv
+   ```
+
+5. Commit with [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, etc.) and open a PR against `main`.
+
+## Pull Requests (summary)
 
 1. Fork and clone with `--recurse-submodules`
-2. Create a feature branch
-3. Make changes and add tests
-4. Run `make check`
-5. Commit with [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, etc.)
-6. Open a PR against `main`
+2. **Open the repo in the Dev Container** (recommended) so all dependencies are available
+3. Create a feature branch and make your changes
+4. Run **`just fix`**, then **`just check`**, then **`just test`** and **`just test-coverage`**
+5. Commit with [Conventional Commits](https://www.conventionalcommits.org/) and open a PR against `main`
 
 ## Releases
 
