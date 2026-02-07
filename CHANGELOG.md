@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.0](https://github.com/ccostello97/udpipe-rs/compare/v0.1.8...v1.0.0) (2026-02-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* Build and API changes require updates to workflows and dependency selection.
+
+### Features
+
+* add CI sanitizers, benchmarks, and coverage improvements ([#29](https://github.com/ccostello97/udpipe-rs/issues/29)) ([64b04db](https://github.com/ccostello97/udpipe-rs/commit/64b04dbbdcc227910e83a5b73bb64a872ad187e6))
+* devcontainer, justfile, optional download, and streaming parser ([#35](https://github.com/ccostello97/udpipe-rs/issues/35)) ([54110ac](https://github.com/ccostello97/udpipe-rs/commit/54110ac0361a7d987bd4ccbaa4ec8f223956ffa3))
+
+
+### Bug Fixes
+
+* cargo udeps --all-features in justfile and CI, example tweaks ([04bde3f](https://github.com/ccostello97/udpipe-rs/commit/04bde3f382f742dd436d0f041990b439495d5092))
+* enable llvm-header-guard lint ([877a40c](https://github.com/ccostello97/udpipe-rs/commit/877a40cd471e5ad0e86b70117539367c9d5cbd9b))
+* enforce consistent llvm 18 clang tools ([81a90d6](https://github.com/ccostello97/udpipe-rs/commit/81a90d62a4d199eb812c6c35ba3cb835e5e8ef8f))
+* improve makefile ([6fec4b6](https://github.com/ccostello97/udpipe-rs/commit/6fec4b626f4c23f1f6102c2b0f451e61388d4a88))
+* update ci yaml ([1db96bd](https://github.com/ccostello97/udpipe-rs/commit/1db96bdbfacbc754a3b3f272d6aee610b2395fe2))
+
 ## [0.1.8](https://github.com/ccostello97/udpipe-rs/compare/v0.1.7...v0.1.8) (2025-12-28)
 
 
