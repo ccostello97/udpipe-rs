@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "udpipe-rs"
-version = "0.1.8"
+version = "1.0.0"
 dependencies = [
  "cc",
  "criterion",
