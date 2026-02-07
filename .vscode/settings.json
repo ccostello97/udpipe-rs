@@ -25,8 +25,9 @@
       80
     ]
   },
-  // Rust Analyzer
+  // Rust Analyzer - use same lints as Cargo.toml [lints.rust] and [lints.clippy]
   "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": [],
   "rust-analyzer.cargo.features": "all",
   "rust-analyzer.imports.granularity.group": "module",
   "rust-analyzer.imports.prefix": "crate",
@@ -40,12 +41,13 @@
   },
   // YAML schema validation
   "yaml.schemas": {
-    "https://json.schemastore.org/clang-format-18.x.json": ".clang-format",
-    "https://www.schemastore.org/clang-tidy.json": ".clang-tidy"
+    "https://json.schemastore.org/clang-format-21.x.json": ".clang-format",
+    "https://www.schemastore.org/clang-tidy.json": ".clang-tidy",
+    "https://www.schemastore.org/clangd.json": ".clangd"
   },
   // Coverage Gutters - remap Docker container paths to local workspace
   "coverage-gutters.remotePathResolve": [
     "/workspace/",
     ""
-  ],
+  ]
 }

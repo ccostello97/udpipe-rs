@@ -8,40 +8,65 @@
 //! ```no_run
 //! use udpipe_rs::Model;
 //!
-//! // Download a model by language (one-time setup)
-//! let model_path =
-//!     udpipe_rs::download_model("english-ewt", ".").expect("Failed to download model");
+//! // Load a model from a path (or enable the "download" feature to fetch via download_model)
+//! let model = Model::load("path/to/model.udpipe").expect("Failed to load model");
 //!
-//! // Load and use the model
-//! let model = Model::load(&model_path).expect("Failed to load model");
-//! let words = model.parse("Hello world!").expect("Failed to parse");
-//!
-//! for word in words {
-//!     println!("{}: {} ({})", word.form, word.upostag, word.deprel);
+//! // Parse text - returns an iterator over sentences
+//! for sentence in model
+//!     .parser("Hello world!")
+//!     .expect("Failed to create parser")
+//! {
+//!     let sentence = sentence.expect("Failed to parse sentence");
+//!     for word in &sentence.words {
+//!         println!("{}: {} ({})", word.form, word.upostag, word.deprel);
+//!     }
 //! }
 //! ```
 
 use std::ffi::{CStr, CString};
-use std::fs::File;
-use std::io::BufWriter;
 use std::path::Path;
 
-/// Base URL for the LINDAT/CLARIAH-CZ model repository (UD 2.5).
-const MODEL_BASE_URL: &str =
-    "https://lindat.mff.cuni.cz/repository/xmlui/bitstream/handle/11234/1-3131";
+#[cfg(feature = "download")]
+use std::fs::File;
+#[cfg(feature = "download")]
+use std::io::BufWriter;
+
+/// Error kind for `UDPipe` operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum UdpipeErrorKind {
+    /// Text or path contained a null byte.
+    NullByteInText,
+    /// Model file could not be loaded (invalid path or corrupt data).
+    ModelLoadFailed,
+    /// Parser could not be created (invalid arguments or tokenizer failure).
+    ParserCreationFailed,
+    /// Parsing failed (tokenizer/tagger/parser internal error).
+    ParseError,
+    /// Invalid input (e.g. unknown language for download).
+    InvalidInput,
+    /// Download failed (network error, empty response, or write failure).
+    DownloadFailed,
+}
 
 /// Error type for `UDPipe` operations.
 #[derive(Debug, Clone)]
 pub struct UdpipeError {
-    /// The error message.
+    /// The kind of error.
+    pub kind: UdpipeErrorKind,
+    /// The error message (details from `UDPipe` or description).
     pub message: String,
+    /// Underlying error, if any (e.g. from I/O).
+    source: Option<std::sync::Arc<dyn std::error::Error + Send + Sync + 'static>>,
 }
 
 impl UdpipeError {
-    /// Create a new error with the given message.
-    pub fn new(message: impl Into<String>) -> Self {
+    /// Create a new error with the given kind and message.
+    pub fn new(kind: UdpipeErrorKind, message: impl Into<String>) -> Self {
         Self {
+            kind,
             message: message.into(),
+            source: None,
         }
     }
 }
@@ -52,18 +77,30 @@ impl std::fmt::Display for UdpipeError {
     }
 }
 
-impl std::error::Error for UdpipeError {}
+impl std::error::Error for UdpipeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source.as_ref().map(|e| {
+            let r: &(dyn std::error::Error + 'static) = e.as_ref();
+            r
+        })
+    }
+}
 
 impl From<std::io::Error> for UdpipeError {
     fn from(err: std::io::Error) -> Self {
         Self {
+            kind: UdpipeErrorKind::ModelLoadFailed,
             message: err.to_string(),
+            source: Some(std::sync::Arc::new(err)),
         }
     }
 }
 
 /// A parsed word from `UDPipe` with Universal Dependencies annotations.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Note: The virtual root word (index 0 in `UDPipe`'s internal representation)
+/// is excluded from results. Word IDs are 1-based as per CoNLL-U format.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Word {
     /// The surface form (actual text).
     pub form: String,
@@ -77,106 +114,45 @@ pub struct Word {
     pub feats: String,
     /// Dependency relation to head (root, nsubj, obj, etc.).
     pub deprel: String,
+    /// Enhanced dependencies (graph-based).
+    pub deps: String,
     /// Miscellaneous annotations (e.g., "SpaceAfter=No").
     pub misc: String,
     /// 1-based index of this word within its sentence.
     pub id: i32,
     /// Index of the head word (0 = root).
     pub head: i32,
-    /// 0-based index of the sentence this word belongs to.
-    pub sentence_id: i32,
+    /// Indices of child words in the dependency tree.
+    pub children: Vec<i32>,
 }
 
-impl Word {
-    /// Returns true if this word has a specific morphological feature.
-    ///
-    /// # Example
-    /// ```
-    /// # use udpipe_rs::Word;
-    /// # let word = Word {
-    /// #     form: "run".to_string(),
-    /// #     lemma: "run".to_string(),
-    /// #     upostag: "VERB".to_string(),
-    /// #     xpostag: String::new(),
-    /// #     feats: "Mood=Imp|VerbForm=Fin".to_string(),
-    /// #     deprel: "root".to_string(),
-    /// #     misc: String::new(),
-    /// #     id: 1,
-    /// #     head: 0,
-    /// #     sentence_id: 0,
-    /// # };
-    /// assert!(word.has_feature("Mood", "Imp"));
-    /// ```
-    #[must_use]
-    pub fn has_feature(&self, key: &str, value: &str) -> bool {
-        self.get_feature(key) == Some(value)
-    }
+/// A multiword token representing contractions (e.g., "don't" -> "do" + "n't").
+///
+/// In CoNLL-U format, multiword tokens span a range of word IDs and have their
+/// own surface form that differs from the concatenation of their component
+/// words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MultiwordToken {
+    /// The surface form of the multiword token.
+    pub form: String,
+    /// Miscellaneous annotations.
+    pub misc: String,
+    /// First word ID in the token range (inclusive).
+    pub id_first: i32,
+    /// Last word ID in the token range (inclusive).
+    pub id_last: i32,
+}
 
-    /// Returns the value of a morphological feature, if present.
-    ///
-    /// # Example
-    /// ```
-    /// # use udpipe_rs::Word;
-    /// # let word = Word {
-    /// #     form: "run".to_string(),
-    /// #     lemma: "run".to_string(),
-    /// #     upostag: "VERB".to_string(),
-    /// #     xpostag: String::new(),
-    /// #     feats: "Mood=Imp|VerbForm=Fin".to_string(),
-    /// #     deprel: "root".to_string(),
-    /// #     misc: String::new(),
-    /// #     id: 1,
-    /// #     head: 0,
-    /// #     sentence_id: 0,
-    /// # };
-    /// assert_eq!(word.get_feature("Mood"), Some("Imp"));
-    /// ```
-    #[must_use]
-    pub fn get_feature(&self, key: &str) -> Option<&str> {
-        self.feats
-            .split('|')
-            .find_map(|f| f.strip_prefix(key)?.strip_prefix('='))
-    }
-
-    /// Returns true if this word is a verb (VERB or AUX).
-    #[must_use]
-    pub fn is_verb(&self) -> bool {
-        self.upostag == "VERB" || self.upostag == "AUX"
-    }
-
-    /// Returns true if this word is a noun (NOUN or PROPN).
-    #[must_use]
-    pub fn is_noun(&self) -> bool {
-        self.upostag == "NOUN" || self.upostag == "PROPN"
-    }
-
-    /// Returns true if this word is an adjective (ADJ).
-    #[must_use]
-    pub fn is_adjective(&self) -> bool {
-        self.upostag == "ADJ"
-    }
-
-    /// Returns true if this word is punctuation (PUNCT).
-    #[must_use]
-    pub fn is_punct(&self) -> bool {
-        self.upostag == "PUNCT"
-    }
-
-    /// Returns true if this word is the root of its sentence.
-    #[must_use]
-    pub fn is_root(&self) -> bool {
-        self.deprel == "root"
-    }
-
-    /// Returns true if there's a space after this word.
-    ///
-    /// In CoNLL-U format, `SpaceAfter=No` is only present when there's no
-    /// space. This returns `true` (the default) when that annotation is
-    /// absent.
-    #[must_use]
-    pub fn has_space_after(&self) -> bool {
-        !self.misc.contains("SpaceAfter=No")
-    }
+/// A parsed sentence containing all CoNLL-U data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Sentence {
+    /// The words in this sentence (excluding the virtual root).
+    pub words: Vec<Word>,
+    /// Multiword tokens (contractions like "don't" -> "do" + "n't").
+    pub multiword_tokens: Vec<MultiwordToken>,
+    /// Comments from the CoNLL-U format (e.g., "# `sent_id` = ...", "# text =
+    /// ...").
+    pub comments: Vec<String>,
 }
 
 /// FFI declarations for the `UDPipe` C++ wrapper.
@@ -186,23 +162,30 @@ mod ffi {
     /// Opaque handle to a loaded `UDPipe` model.
     #[repr(C)]
     pub struct UdpipeModel {
-        /// Zero-sized field to make the struct opaque.
+        /// Zero-sized field to make this type opaque.
         _private: [u8; 0],
     }
 
-    /// Opaque handle to a parse result.
+    /// Opaque handle to a streaming parser.
     #[repr(C)]
-    pub struct UdpipeParseResult {
-        /// Zero-sized field to make the struct opaque.
+    pub struct UdpipeParser {
+        /// Zero-sized field to make this type opaque.
         _private: [u8; 0],
     }
 
-    /// A single word from a parse result.
+    /// Opaque handle to a parsed sentence.
+    #[repr(C)]
+    pub struct UdpipeSentence {
+        /// Zero-sized field to make this type opaque.
+        _private: [u8; 0],
+    }
+
+    /// A single word from a sentence.
     #[repr(C)]
     pub struct UdpipeWord {
-        /// The word form (surface text).
+        /// Word form (the actual text).
         pub form: *const c_char,
-        /// The lemma.
+        /// Lemma (base form).
         pub lemma: *const c_char,
         /// Universal POS tag.
         pub upostag: *const c_char,
@@ -212,46 +195,109 @@ mod ffi {
         pub feats: *const c_char,
         /// Dependency relation.
         pub deprel: *const c_char,
+        /// Enhanced dependencies.
+        pub deps: *const c_char,
         /// Miscellaneous annotations.
         pub misc: *const c_char,
-        /// Word ID (1-indexed within sentence).
+        /// Array of child word IDs.
+        pub children: *const i32,
+        /// Word ID (1-indexed).
         pub id: i32,
-        /// Head word ID (0 for root).
+        /// Head word ID (0 = root).
         pub head: i32,
-        /// Sentence ID (0-indexed).
-        pub sentence_id: i32,
+        /// Number of children.
+        pub children_count: i32,
+    }
+
+    /// A multiword token.
+    #[repr(C)]
+    pub struct UdpipeMultiwordToken {
+        /// Token form (the actual text).
+        pub form: *const c_char,
+        /// Miscellaneous annotations.
+        pub misc: *const c_char,
+        /// First word ID in the range.
+        pub id_first: i32,
+        /// Last word ID in the range.
+        pub id_last: i32,
     }
 
     unsafe extern "C" {
-        /// Load a model from a file path.
-        pub fn udpipe_model_load(model_path: *const c_char) -> *mut UdpipeModel;
-        /// Load a model from memory.
-        pub fn udpipe_model_load_from_memory(data: *const u8, len: usize) -> *mut UdpipeModel;
-        /// Free a loaded model.
+        // Model functions (on failure C sets *out_error; valid until next API call on
+        // that thread)
+        pub fn udpipe_model_load(
+            model_path: *const c_char,
+            out_error: *mut *const c_char,
+        ) -> *mut UdpipeModel;
+        pub fn udpipe_model_load_from_memory(
+            data: *const u8,
+            len: usize,
+            out_error: *mut *const c_char,
+        ) -> *mut UdpipeModel;
         pub fn udpipe_model_free(model: *mut UdpipeModel);
-        /// Parse text and return a result handle.
-        pub fn udpipe_parse(model: *mut UdpipeModel, text: *const c_char)
-        -> *mut UdpipeParseResult;
-        /// Free a parse result.
-        pub fn udpipe_result_free(result: *mut UdpipeParseResult);
-        /// Get the last error message.
-        pub fn udpipe_get_error() -> *const c_char;
-        /// Get the word count in a parse result.
-        pub fn udpipe_result_word_count(result: *mut UdpipeParseResult) -> i32;
-        /// Get a word by index from a parse result.
-        pub fn udpipe_result_get_word(result: *mut UdpipeParseResult, index: i32) -> UdpipeWord;
+
+        // Parser functions
+        pub fn udpipe_parser_new(
+            model: *mut UdpipeModel,
+            text: *const c_char,
+            out_error: *mut *const c_char,
+        ) -> *mut UdpipeParser;
+        pub fn udpipe_parser_next(
+            parser: *mut UdpipeParser,
+            out_error: *mut *const c_char,
+        ) -> *mut UdpipeSentence;
+        pub fn udpipe_parser_has_error(parser: *mut UdpipeParser) -> bool;
+        pub fn udpipe_parser_free(parser: *mut UdpipeParser);
+
+        // Sentence - general
+        pub fn udpipe_sentence_free(sentence: *mut UdpipeSentence);
+
+        // Sentence - words
+        pub fn udpipe_sentence_word_count(sentence: *mut UdpipeSentence) -> i32;
+        pub fn udpipe_sentence_get_word(sentence: *mut UdpipeSentence, index: i32) -> UdpipeWord;
+
+        // Sentence - multiword tokens
+        pub fn udpipe_sentence_multiword_token_count(sentence: *mut UdpipeSentence) -> i32;
+        pub fn udpipe_sentence_get_multiword_token(
+            sentence: *mut UdpipeSentence,
+            index: i32,
+        ) -> UdpipeMultiwordToken;
+
+        // Sentence - comments
+        pub fn udpipe_sentence_comment_count(sentence: *mut UdpipeSentence) -> i32;
+        pub fn udpipe_sentence_get_comment(
+            sentence: *mut UdpipeSentence,
+            index: i32,
+        ) -> *const c_char;
     }
 }
 
-/// Get the last error from the FFI layer.
-fn get_ffi_error() -> String {
-    // SAFETY: `udpipe_get_error` returns a pointer to a static thread-local buffer.
-    let err_ptr = unsafe { ffi::udpipe_get_error() };
-    assert!(!err_ptr.is_null(), "UDPipe returned null error pointer");
-    // SAFETY: The pointer is valid and points to a null-terminated C string.
+/// Copy the error message from *`out_error`. Valid until next API call on the
+/// same thread; we copy immediately. Returns a fallback if the pointer is null.
+fn copy_error_message(err_ptr: *const std::os::raw::c_char) -> String {
+    if err_ptr.is_null() {
+        return "Unknown UDPipe error".to_owned();
+    }
+    // SAFETY: C++ set this to a valid null-terminated string.
     unsafe { CStr::from_ptr(err_ptr) }
         .to_string_lossy()
         .into_owned()
+}
+
+/// Call a fallible FFI function that writes *`out_error` on failure; map null
+/// result to Err with the error message. Returns the pointer on success.
+fn ffi_try<T>(
+    out_error: &mut *const std::os::raw::c_char,
+    f: impl FnOnce(*mut *const std::os::raw::c_char) -> *mut T,
+    kind: UdpipeErrorKind,
+) -> Result<*mut T, UdpipeError> {
+    *out_error = std::ptr::null();
+    let result = f(std::ptr::from_mut::<*const std::os::raw::c_char>(out_error));
+    if result.is_null() {
+        Err(UdpipeError::new(kind, copy_error_message(*out_error)))
+    } else {
+        Ok(result)
+    }
 }
 
 /// `UDPipe` model wrapper.
@@ -261,12 +307,60 @@ fn get_ffi_error() -> String {
 ///
 /// # Thread Safety
 ///
-/// `Model` is [`Send`] but not [`Sync`]. You can transfer a model to another
-/// thread, but you cannot share references to it across threads. If you need
-/// concurrent access from multiple threads, wrap the model in
-/// `Arc<Mutex<Model>>`.
+/// `Model` is [`Send`] but **not** [`Sync`]. This means:
+///
+/// - **Safe**: Moving a model to another thread (`std::thread::spawn`)
+/// - **Safe**: Using a model from one thread at a time
+/// - **Unsafe**: Sharing `&Model` across threads (won't compile)
+///
+/// The underlying `UDPipe` C++ library mutates internal workspace caches during
+/// parsing operations. While the library uses thread-safe pools for cache
+/// allocation, concurrent parsing on the same model instance would race on the
+/// workspace contents.
+///
+/// ## Concurrent Access Patterns
+///
+/// If you need to parse from multiple threads, you have two options:
+///
+/// 1. **Shared model with mutex** (lower memory, serialized parsing):
+///
+/// ```no_run
+/// use std::sync::{Arc, Mutex};
+///
+/// use udpipe_rs::Model;
+///
+/// let model = Arc::new(Mutex::new(Model::load("model.udpipe").unwrap()));
+///
+/// // In each thread: hold the lock while parsing
+/// let guard = model.lock().unwrap();
+/// for sentence in guard.parser("text").unwrap() {
+///     // ...
+/// }
+/// // Lock released when guard is dropped
+/// ```
+///
+/// 2. **Separate model per thread** (higher memory, parallel parsing):
+///
+/// ```no_run
+/// use udpipe_rs::Model;
+///
+/// std::thread::scope(|s| {
+///     s.spawn(|| {
+///         let model = Model::load("model.udpipe").unwrap();
+///         for sentence in model.parser("text from thread 1").unwrap() {
+///             // ...
+///         }
+///     });
+///     s.spawn(|| {
+///         let model = Model::load("model.udpipe").unwrap();
+///         for sentence in model.parser("text from thread 2").unwrap() {
+///             // ...
+///         }
+///     });
+/// });
+/// ```
 pub struct Model {
-    /// Raw pointer to the underlying `UDPipe` model.
+    /// Raw pointer to the C++ model.
     inner: *mut ffi::UdpipeModel,
 }
 
@@ -289,17 +383,6 @@ impl std::fmt::Debug for Model {
 //   captured immediately after each FFI call on the calling thread
 unsafe impl Send for Model {}
 
-// NOTE: Model is intentionally !Sync because the underlying UDPipe C++ library
-// is not thread-safe for concurrent access.
-//
-// Evidence from vendor/udpipe/src:
-// - tag() and parse() methods mutate internal workspace caches
-// - While caches use threadsafe_stack for pool management, concurrent parse
-//   operations on the same Model would race on workspace contents
-// - TSAN confirms data races in std::string operations during concurrent access
-//
-// Use Arc<Mutex<Model>> or create separate Model instances per thread.
-
 impl Model {
     /// Load a model from a file path.
     ///
@@ -315,19 +398,23 @@ impl Model {
     /// ```
     pub fn load(path: impl AsRef<Path>) -> Result<Self, UdpipeError> {
         let path_str = path.as_ref().to_string_lossy();
-        let c_path = CString::new(path_str.as_bytes()).map_err(|_| UdpipeError {
-            message: "Invalid path (contains null byte)".to_owned(),
+        let c_path = CString::new(path_str.as_bytes()).map_err(|_| {
+            UdpipeError::new(
+                UdpipeErrorKind::NullByteInText,
+                "Invalid path (contains null byte)",
+            )
         })?;
 
-        // SAFETY: `c_path` is a valid null-terminated C string.
-        let model = unsafe { ffi::udpipe_model_load(c_path.as_ptr()) };
-
-        if model.is_null() {
-            return Err(UdpipeError {
-                message: get_ffi_error(),
-            });
-        }
-
+        let mut out_error: *const std::os::raw::c_char = std::ptr::null();
+        let model = ffi_try(
+            &mut out_error,
+            |e| {
+                // SAFETY: `c_path` is a valid NUL-terminated C string; `e` is a valid out-error
+                // pointer.
+                unsafe { ffi::udpipe_model_load(c_path.as_ptr(), e) }
+            },
+            UdpipeErrorKind::ModelLoadFailed,
+        )?;
         Ok(Self { inner: model })
     }
 
@@ -347,85 +434,74 @@ impl Model {
     /// let model = Model::load_from_memory(&model_data).expect("Failed to load model");
     /// ```
     pub fn load_from_memory(data: &[u8]) -> Result<Self, UdpipeError> {
-        // SAFETY: `data` is a valid slice; pointer and length are derived from it.
-        let model = unsafe { ffi::udpipe_model_load_from_memory(data.as_ptr(), data.len()) };
-
-        if model.is_null() {
-            return Err(UdpipeError {
-                message: get_ffi_error(),
-            });
-        }
-
+        let mut out_error: *const std::os::raw::c_char = std::ptr::null();
+        let model = ffi_try(
+            &mut out_error,
+            |e| {
+                // SAFETY: `data` is a valid slice; `e` is a valid out-error pointer.
+                unsafe { ffi::udpipe_model_load_from_memory(data.as_ptr(), data.len(), e) }
+            },
+            UdpipeErrorKind::ModelLoadFailed,
+        )?;
         Ok(Self { inner: model })
     }
 
-    /// Parse text and return all words with their UD annotations.
+    /// Create a parser for the given text.
     ///
-    /// The text is tokenized, tagged, lemmatized, and parsed for dependencies.
+    /// Returns an iterator that yields sentences one at a time. Each sentence
+    /// is tokenized, tagged, lemmatized, and parsed for dependencies.
     ///
     /// # Errors
     ///
-    /// Returns an error if the text contains a null byte or if parsing fails.
+    /// Returns an error if the text contains a null byte or if the parser
+    /// cannot be created.
     ///
     /// # Example
     /// ```no_run
     /// use udpipe_rs::Model;
+    ///
     /// let model = Model::load("english-ewt-ud-2.5-191206.udpipe").expect("Failed to load");
-    /// let words = model
-    ///     .parse("The quick brown fox.")
-    ///     .expect("Failed to parse");
-    /// for word in words {
-    ///     println!("{} -> {} ({})", word.form, word.lemma, word.upostag);
+    /// for sentence in model
+    ///     .parser("The quick brown fox.")
+    ///     .expect("Failed to create parser")
+    /// {
+    ///     let sentence = sentence.expect("Failed to parse sentence");
+    ///     for word in &sentence.words {
+    ///         println!("{} -> {} ({})", word.form, word.lemma, word.upostag);
+    ///     }
     /// }
     /// ```
-    pub fn parse(&self, text: &str) -> Result<Vec<Word>, UdpipeError> {
-        let c_text = CString::new(text).map_err(|_| UdpipeError {
-            message: "Invalid text (contains null byte)".to_owned(),
+    pub fn parser(&self, text: &str) -> Result<Parser<'_>, UdpipeError> {
+        let c_text = CString::new(text).map_err(|_| {
+            UdpipeError::new(
+                UdpipeErrorKind::NullByteInText,
+                "Invalid text (contains null byte)",
+            )
         })?;
 
-        // SAFETY: `self.inner` is valid and `c_text` is a valid null-terminated C
-        // string.
-        let result = unsafe { ffi::udpipe_parse(self.inner, c_text.as_ptr()) };
-        if result.is_null() {
-            return Err(UdpipeError {
-                message: get_ffi_error(),
-            });
-        }
-
-        // SAFETY: `result` is a valid parse result pointer.
-        let word_count = unsafe { ffi::udpipe_result_word_count(result) };
-        let capacity = usize::try_from(word_count).unwrap_or(0);
-        let mut words = Vec::with_capacity(capacity);
-
-        for i in 0..word_count {
-            // SAFETY: `result` is valid and `i` is within bounds.
-            let word = unsafe { ffi::udpipe_result_get_word(result, i) };
-            words.push(Word {
-                form: ptr_to_string(word.form),
-                lemma: ptr_to_string(word.lemma),
-                upostag: ptr_to_string(word.upostag),
-                xpostag: ptr_to_string(word.xpostag),
-                feats: ptr_to_string(word.feats),
-                deprel: ptr_to_string(word.deprel),
-                misc: ptr_to_string(word.misc),
-                id: word.id,
-                head: word.head,
-                sentence_id: word.sentence_id,
-            });
-        }
-
-        // SAFETY: `result` is a valid pointer that we own.
-        unsafe { ffi::udpipe_result_free(result) };
-
-        Ok(words)
+        let mut out_error: *const std::os::raw::c_char = std::ptr::null();
+        let parser = ffi_try(
+            &mut out_error,
+            |e| {
+                // SAFETY: `self.inner` is a valid model; `c_text` is NUL-terminated; `e` is a
+                // valid out-error pointer.
+                unsafe { ffi::udpipe_parser_new(self.inner, c_text.as_ptr(), e) }
+            },
+            UdpipeErrorKind::ParserCreationFailed,
+        )?;
+        Ok(Parser {
+            inner: parser,
+            errored: false,
+            _model: self,
+        })
     }
 }
 
 /// Convert a C string pointer to an owned `String`.
-///
-/// # Safety
-/// The pointer must be valid and point to a null-terminated C string.
 fn ptr_to_string(ptr: *const std::os::raw::c_char) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
     // SAFETY: FFI guarantees the pointer is valid and null-terminated.
     unsafe { CStr::from_ptr(ptr) }
         .to_string_lossy()
@@ -441,10 +517,135 @@ impl Drop for Model {
     }
 }
 
+/// A streaming parser that yields sentences one at a time.
+///
+/// Created by [`Model::parser`]. Implements [`Iterator`] where each item is a
+/// [`Result<Sentence, UdpipeError>`].
+///
+/// Once an error occurs, the iterator is "fused" and will return `None` for
+/// all subsequent calls.
+pub struct Parser<'a> {
+    /// Raw pointer to the C++ parser.
+    inner: *mut ffi::UdpipeParser,
+    /// Whether an error has occurred (fuses the iterator).
+    errored: bool,
+    /// Reference to the model so it cannot be dropped while the parser exists.
+    _model: &'a Model,
+}
+
+impl std::fmt::Debug for Parser<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Parser")
+            .field("errored", &self.errored)
+            .finish_non_exhaustive()
+    }
+}
+
+// SAFETY: Parser holds a pointer to C++ state that is tied to a Model.
+// Like Model, it can be sent to another thread but not shared.
+unsafe impl Send for Parser<'_> {}
+
+impl Iterator for Parser<'_> {
+    type Item = Result<Sentence, UdpipeError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.errored || self.inner.is_null() {
+            return None;
+        }
+
+        let mut out_error: *const std::os::raw::c_char = std::ptr::null();
+        // SAFETY: `self.inner` is a valid parser; `out_error` is a valid out-error
+        // pointer.
+        let sentence_ptr = unsafe { ffi::udpipe_parser_next(self.inner, &raw mut out_error) };
+
+        if sentence_ptr.is_null() {
+            // SAFETY: `self.inner` is a valid parser.
+            if unsafe { ffi::udpipe_parser_has_error(self.inner) } {
+                self.errored = true;
+                return Some(Err(UdpipeError::new(
+                    UdpipeErrorKind::ParseError,
+                    copy_error_message(out_error),
+                )));
+            }
+            return None;
+        }
+
+        let ptr = sentence_ptr;
+        Some(Ok({
+            // SAFETY: `ptr` is a valid, non-null pointer from `udpipe_parser_next`.
+            let word_count = unsafe { ffi::udpipe_sentence_word_count(ptr) };
+            let mut words = Vec::with_capacity(usize::try_from(word_count).unwrap_or(0));
+            for i in 0..word_count {
+                // SAFETY: ptr valid; index in range (see above).
+                let w = unsafe { ffi::udpipe_sentence_get_word(ptr, i) };
+                let children = if w.children.is_null() || w.children_count <= 0 {
+                    Vec::new()
+                } else {
+                    let count = usize::try_from(w.children_count).unwrap_or(0);
+                    // SAFETY: w.children is valid for w.children_count elements.
+                    unsafe { std::slice::from_raw_parts(w.children, count) }.to_vec()
+                };
+                words.push(Word {
+                    form: ptr_to_string(w.form),
+                    lemma: ptr_to_string(w.lemma),
+                    upostag: ptr_to_string(w.upostag),
+                    xpostag: ptr_to_string(w.xpostag),
+                    feats: ptr_to_string(w.feats),
+                    deprel: ptr_to_string(w.deprel),
+                    deps: ptr_to_string(w.deps),
+                    misc: ptr_to_string(w.misc),
+                    id: w.id,
+                    head: w.head,
+                    children,
+                });
+            }
+            // SAFETY: ptr valid (see above).
+            let mwt_count = unsafe { ffi::udpipe_sentence_multiword_token_count(ptr) };
+            let mut multiword_tokens = Vec::with_capacity(usize::try_from(mwt_count).unwrap_or(0));
+            for i in 0..mwt_count {
+                // SAFETY: ptr valid; index in range (see above).
+                let mwt = unsafe { ffi::udpipe_sentence_get_multiword_token(ptr, i) };
+                multiword_tokens.push(MultiwordToken {
+                    form: ptr_to_string(mwt.form),
+                    misc: ptr_to_string(mwt.misc),
+                    id_first: mwt.id_first,
+                    id_last: mwt.id_last,
+                });
+            }
+            // SAFETY: ptr valid (see above).
+            let comment_count = unsafe { ffi::udpipe_sentence_comment_count(ptr) };
+            let mut comments = Vec::with_capacity(usize::try_from(comment_count).unwrap_or(0));
+            for i in 0..comment_count {
+                comments.push(ptr_to_string(
+                    // SAFETY: ptr valid; index in range (see above).
+                    unsafe { ffi::udpipe_sentence_get_comment(ptr, i) },
+                ));
+            }
+            // SAFETY: ptr is our exclusive ownership from udpipe_parser_next; we may free
+            // it.
+            unsafe { ffi::udpipe_sentence_free(ptr) };
+            Sentence {
+                words,
+                multiword_tokens,
+                comments,
+            }
+        }))
+    }
+}
+
+impl Drop for Parser<'_> {
+    fn drop(&mut self) {
+        if !self.inner.is_null() {
+            // SAFETY: `self.inner` is valid and we have exclusive ownership.
+            unsafe { ffi::udpipe_parser_free(self.inner) };
+        }
+    }
+}
+
 /// Available pre-trained models from Universal Dependencies 2.5.
 ///
 /// These models are hosted at the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131).
-/// Use [`download_model`] to fetch them.
+/// Enable the `download` feature and use [`download_model`] to fetch them.
 pub const AVAILABLE_MODELS: &[&str] = &[
     "afrikaans-afribooms",
     "ancient_greek-perseus",
@@ -549,9 +750,14 @@ pub const AVAILABLE_MODELS: &[&str] = &[
     "wolof-wtb",
 ];
 
+/// Base URL for the LINDAT/CLARIAH-CZ model repository (UD 2.5).
+#[cfg(feature = "download")]
+const MODEL_BASE_URL: &str =
+    "https://lindat.mff.cuni.cz/repository/xmlui/bitstream/handle/11234/1-3131";
+
 /// Download a pre-trained model by language identifier.
 ///
-/// Downloads a model from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131)
+/// Requires the `download` feature. Downloads a model from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131)
 /// to the specified destination directory. Returns the path to the downloaded
 /// model file.
 ///
@@ -578,26 +784,26 @@ pub const AVAILABLE_MODELS: &[&str] = &[
 /// // Load and use
 /// let model = Model::load(&model_path).expect("Failed to load");
 /// ```
+#[cfg(feature = "download")]
+#[cfg_attr(docsrs, doc(cfg(feature = "download")))]
 pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<String, UdpipeError> {
     let dest_dir = dest_dir.as_ref();
 
-    // Validate the language
     if !AVAILABLE_MODELS.contains(&language) {
-        return Err(UdpipeError {
-            message: format!(
+        return Err(UdpipeError::new(
+            UdpipeErrorKind::InvalidInput,
+            format!(
                 "Unknown language '{}'. Use one of: {}",
                 language,
                 AVAILABLE_MODELS[..5].join(", ") + ", ..."
             ),
-        });
+        ));
     }
 
-    // Construct filename and URL
     let filename = model_filename(language);
     let dest_path = dest_dir.join(&filename);
     let url = format!("{MODEL_BASE_URL}/{filename}");
 
-    // Download using the generic download function
     download_model_from_url(&url, &dest_path)?;
 
     Ok(dest_path.to_string_lossy().into_owned())
@@ -605,7 +811,7 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 
 /// Download a model from a custom URL to a local file path.
 ///
-/// Use this if you need to download models from a different source or version.
+/// Requires the `download` feature. Use this if you need to download models from a different source or version.
 /// For standard models, prefer [`download_model`].
 ///
 /// # Errors
@@ -624,23 +830,27 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 /// )
 /// .expect("Failed to download");
 /// ```
+#[cfg(feature = "download")]
+#[cfg_attr(docsrs, doc(cfg(feature = "download")))]
 pub fn download_model_from_url(url: &str, path: impl AsRef<Path>) -> Result<(), UdpipeError> {
     let path = path.as_ref();
 
-    // Download using ureq
-    let response = ureq::get(url).call().map_err(|e| UdpipeError {
-        message: format!("Failed to download: {e}"),
+    let response = ureq::get(url).call().map_err(|e| {
+        UdpipeError::new(
+            UdpipeErrorKind::DownloadFailed,
+            format!("Failed to download: {e}"),
+        )
     })?;
 
-    // Stream response directly to file
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
     let bytes_written = std::io::copy(&mut response.into_body().into_reader(), &mut writer)?;
 
     if bytes_written == 0 {
-        return Err(UdpipeError {
-            message: "Downloaded file is empty".to_owned(),
-        });
+        return Err(UdpipeError::new(
+            UdpipeErrorKind::DownloadFailed,
+            "Downloaded file is empty",
+        ));
     }
 
     Ok(())
@@ -663,134 +873,9 @@ pub fn model_filename(language: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use super::*;
-
-    fn make_word(feats: &str) -> Word {
-        Word {
-            form: "test".to_owned(),
-            lemma: "test".to_owned(),
-            upostag: "NOUN".to_owned(),
-            xpostag: String::new(),
-            feats: feats.to_owned(),
-            deprel: "root".to_owned(),
-            misc: String::new(),
-            id: 1,
-            head: 0,
-            sentence_id: 0,
-        }
-    }
-
-    #[test]
-    fn test_word_has_feature() {
-        let word = make_word("Mood=Imp|VerbForm=Fin");
-
-        assert!(word.has_feature("Mood", "Imp"));
-        assert!(word.has_feature("VerbForm", "Fin"));
-        assert!(!word.has_feature("Mood", "Ind"));
-        assert!(!word.has_feature("Tense", "Past"));
-    }
-
-    #[test]
-    fn test_word_has_feature_empty() {
-        let word = make_word("");
-        assert!(!word.has_feature("Mood", "Imp"));
-    }
-
-    #[test]
-    fn test_word_has_feature_single() {
-        let word = make_word("Mood=Imp");
-        assert!(word.has_feature("Mood", "Imp"));
-        assert!(!word.has_feature("VerbForm", "Fin"));
-    }
-
-    #[test]
-    fn test_word_get_feature() {
-        let word = make_word("Tense=Pres|VerbForm=Part");
-
-        assert_eq!(word.get_feature("Tense"), Some("Pres"));
-        assert_eq!(word.get_feature("VerbForm"), Some("Part"));
-        assert_eq!(word.get_feature("Mood"), None);
-    }
-
-    #[test]
-    fn test_word_get_feature_empty() {
-        let word = make_word("");
-        assert_eq!(word.get_feature("Mood"), None);
-    }
-
-    #[test]
-    fn test_word_get_feature_single() {
-        let word = make_word("Mood=Imp");
-        assert_eq!(word.get_feature("Mood"), Some("Imp"));
-        assert_eq!(word.get_feature("VerbForm"), None);
-    }
-
-    #[test]
-    fn test_word_is_verb() {
-        let mut word = make_word("");
-        word.upostag = "VERB".to_owned();
-        assert!(word.is_verb());
-
-        word.upostag = "AUX".to_owned();
-        assert!(word.is_verb());
-
-        word.upostag = "NOUN".to_owned();
-        assert!(!word.is_verb());
-    }
-
-    #[test]
-    fn test_word_is_noun() {
-        let mut word = make_word("");
-        word.upostag = "NOUN".to_owned();
-        assert!(word.is_noun());
-
-        word.upostag = "PROPN".to_owned();
-        assert!(word.is_noun());
-
-        word.upostag = "VERB".to_owned();
-        assert!(!word.is_noun());
-    }
-
-    #[test]
-    fn test_word_is_root() {
-        let mut word = make_word("");
-        word.deprel = "root".to_owned();
-        assert!(word.is_root());
-
-        word.deprel = "nsubj".to_owned();
-        assert!(!word.is_root());
-    }
-
-    #[test]
-    fn test_word_is_adjective() {
-        let mut word = make_word("");
-        word.upostag = "ADJ".to_owned();
-        assert!(word.is_adjective());
-
-        word.upostag = "NOUN".to_owned();
-        assert!(!word.is_adjective());
-    }
-
-    #[test]
-    fn test_word_is_punct() {
-        let mut word = make_word("");
-        word.upostag = "PUNCT".to_owned();
-        assert!(word.is_punct());
-
-        word.upostag = "NOUN".to_owned();
-        assert!(!word.is_punct());
-    }
-
-    #[test]
-    fn test_word_hash() {
-        use std::collections::HashSet;
-
-        let word1 = make_word("Mood=Imp");
-        let word2 = make_word("Mood=Imp");
-        let mut set = HashSet::new();
-        set.insert(word1);
-        assert!(set.contains(&word2));
-    }
 
     #[test]
     fn test_model_filename() {
@@ -814,23 +899,24 @@ mod tests {
 
     #[test]
     fn test_available_models_sorted() {
-        // Verify the list is sorted for binary search if needed later
         let mut sorted = AVAILABLE_MODELS.to_vec();
         sorted.sort_unstable();
         assert_eq!(AVAILABLE_MODELS, sorted.as_slice());
     }
 
     #[test]
+    #[cfg(feature = "download")]
     fn test_download_model_invalid_language() {
         let result = download_model("invalid-language-xyz", ".");
         assert!(result.is_err());
         let err = result.unwrap_err();
+        assert_eq!(err.kind, UdpipeErrorKind::InvalidInput);
         assert!(err.message.contains("Unknown language"));
     }
 
     #[test]
     fn test_udpipe_error_display() {
-        let err = UdpipeError::new("test error");
+        let err = UdpipeError::new(UdpipeErrorKind::ParseError, "test error");
         assert_eq!(format!("{err}"), "UDPipe error: test error");
     }
 
@@ -839,30 +925,18 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let err: UdpipeError = io_err.into();
         assert!(err.message.contains("not found"));
+        assert!(err.source().is_some());
     }
 
     #[test]
-    fn test_has_space_after() {
-        let mut word = make_word("");
-        word.misc = String::new();
-        assert!(word.has_space_after()); // default: has space
-
-        word.misc = "SpaceAfter=No".to_owned();
-        assert!(!word.has_space_after());
-
-        word.misc = "SpaceAfter=No|Other=Value".to_owned();
-        assert!(!word.has_space_after());
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore)] // FFI
+    #[cfg_attr(miri, ignore)]
     fn test_model_load_nonexistent_file() {
         let result = Model::load("/nonexistent/path/to/model.udpipe");
         assert!(result.is_err());
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
+    #[cfg_attr(miri, ignore)]
     fn test_model_load_path_with_null_byte() {
         let result = Model::load("path\0with\0nulls.udpipe");
         let err = result.expect_err("expected error");
@@ -870,14 +944,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
+    #[cfg_attr(miri, ignore)]
     fn test_model_load_from_memory_empty() {
         let result = Model::load_from_memory(&[]);
         assert!(result.is_err());
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
+    #[cfg_attr(miri, ignore)]
     fn test_model_load_from_memory_invalid() {
         let garbage = b"this is not a valid udpipe model";
         let result = Model::load_from_memory(garbage);
@@ -885,13 +959,12 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
-    fn test_parse_with_null_model() {
-        // Create a Model with a null inner pointer to test the error path
+    #[cfg_attr(miri, ignore)]
+    fn test_parser_with_null_model() {
         let model = Model {
             inner: std::ptr::null_mut(),
         };
-        let result = model.parse("test");
+        let result = model.parser("test");
         let err = result.unwrap_err();
         assert!(err.message.contains("Invalid arguments"));
     }
@@ -907,32 +980,48 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // networking
+    fn test_parser_debug() {
+        let model = Model {
+            inner: std::ptr::null_mut(),
+        };
+        let parser = Parser {
+            inner: std::ptr::null_mut(),
+            errored: false,
+            _model: &model,
+        };
+        let debug_str = format!("{parser:?}");
+        assert!(debug_str.contains("Parser"));
+        assert!(debug_str.contains("errored"));
+    }
+
+    #[test]
+    #[cfg(feature = "download")]
+    #[cfg_attr(miri, ignore)]
     fn test_download_model_from_url_invalid_url() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("model.udpipe");
         let result = download_model_from_url("http://invalid.invalid/no-such-model", &path);
         assert!(result.is_err());
         let err = result.unwrap_err();
+        assert_eq!(err.kind, UdpipeErrorKind::DownloadFailed);
         assert!(err.message.contains("Failed to download"));
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // networking
+    #[cfg(feature = "download")]
+    #[cfg_attr(miri, ignore)]
     fn test_download_model_from_url_nonexistent_dir() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("nonexistent/model.udpipe");
-        // Use a dummy URL - we should fail when writing, not on network
         let url = "http://localhost:1/model.udpipe";
 
         let result = download_model_from_url(url, &path);
-        // Will fail on network error first since dir doesn't exist check happens at
-        // write time
         assert!(result.is_err());
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // networking
+    #[cfg(feature = "download")]
+    #[cfg_attr(miri, ignore)]
     fn test_download_model_from_url_empty_response() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("model.udpipe");
@@ -951,32 +1040,102 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
+        assert_eq!(err.kind, UdpipeErrorKind::DownloadFailed);
         assert!(err.message.contains("empty"));
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
-    fn test_ffi_null_result_word_count() {
-        // SAFETY: Testing that null pointer returns 0 (defensive C++ code)
-        let count = unsafe { ffi::udpipe_result_word_count(std::ptr::null_mut()) };
+    #[cfg_attr(miri, ignore)]
+    fn test_ffi_null_sentence_word_count() {
+        // SAFETY: Testing that null pointer returns 0 (defensive C++ code).
+        let count = unsafe { ffi::udpipe_sentence_word_count(std::ptr::null_mut()) };
         assert_eq!(count, 0);
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
-    fn test_ffi_null_result_get_word() {
-        // SAFETY: Testing that null pointer returns zeroed word (defensive C++ code)
-        let word = unsafe { ffi::udpipe_result_get_word(std::ptr::null_mut(), 0) };
+    #[cfg_attr(miri, ignore)]
+    fn test_ffi_null_sentence_get_word() {
+        // SAFETY: Testing that null pointer returns zeroed word (defensive C++ code).
+        let word = unsafe { ffi::udpipe_sentence_get_word(std::ptr::null_mut(), 0) };
         assert!(word.form.is_null());
         assert!(word.lemma.is_null());
         assert!(word.upostag.is_null());
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // FFI
+    #[cfg_attr(miri, ignore)]
     fn test_ffi_invalid_index() {
-        // SAFETY: Testing bounds checking with negative index
-        let word = unsafe { ffi::udpipe_result_get_word(std::ptr::null_mut(), -1) };
+        // SAFETY: Testing that invalid index returns zeroed word (defensive C++ code).
+        let word = unsafe { ffi::udpipe_sentence_get_word(std::ptr::null_mut(), -1) };
         assert!(word.form.is_null());
+    }
+
+    #[test]
+    fn test_parser_null_returns_none() {
+        let model = Model {
+            inner: std::ptr::null_mut(),
+        };
+        let mut parser = Parser {
+            inner: std::ptr::null_mut(),
+            errored: false,
+            _model: &model,
+        };
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    fn test_parser_errored_returns_none() {
+        let model = Model {
+            inner: std::ptr::null_mut(),
+        };
+        let mut parser = Parser {
+            inner: std::ptr::null_mut(),
+            errored: true,
+            _model: &model,
+        };
+        assert!(parser.next().is_none());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn test_ffi_null_sentence_multiword_token_count() {
+        // SAFETY: Testing that null pointer returns 0 (defensive C++ code).
+        let count = unsafe { ffi::udpipe_sentence_multiword_token_count(std::ptr::null_mut()) };
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn test_ffi_null_sentence_get_multiword_token() {
+        // SAFETY: Testing that null pointer returns zeroed struct (defensive C++ code).
+        let mwt = unsafe { ffi::udpipe_sentence_get_multiword_token(std::ptr::null_mut(), 0) };
+        assert!(mwt.form.is_null());
+        assert!(mwt.misc.is_null());
+        assert_eq!(mwt.id_first, 0);
+        assert_eq!(mwt.id_last, 0);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn test_ffi_null_sentence_comment_count() {
+        // SAFETY: Testing that null pointer returns 0 (defensive C++ code).
+        let count = unsafe { ffi::udpipe_sentence_comment_count(std::ptr::null_mut()) };
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn test_ffi_null_sentence_get_comment() {
+        // SAFETY: Testing that null pointer returns null (defensive C++ code).
+        let comment = unsafe { ffi::udpipe_sentence_get_comment(std::ptr::null_mut(), 0) };
+        assert!(comment.is_null());
+    }
+
+    #[test]
+    fn test_ptr_to_string_null() {
+        // Test that ptr_to_string returns empty string for null pointer.
+        // This covers the defensive null check in ptr_to_string.
+        let result = ptr_to_string(std::ptr::null());
+        assert!(result.is_empty());
     }
 }
