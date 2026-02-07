@@ -24,12 +24,11 @@
 //! ```
 
 use std::ffi::{CStr, CString};
-use std::path::Path;
-
 #[cfg(feature = "download")]
 use std::fs::File;
 #[cfg(feature = "download")]
 use std::io::BufWriter;
+use std::path::Path;
 
 /// Error kind for `UDPipe` operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -811,8 +810,9 @@ pub fn download_model(language: &str, dest_dir: impl AsRef<Path>) -> Result<Stri
 
 /// Download a model from a custom URL to a local file path.
 ///
-/// Requires the `download` feature. Use this if you need to download models from a different source or version.
-/// For standard models, prefer [`download_model`].
+/// Requires the `download` feature. Use this if you need to download models
+/// from a different source or version. For standard models, prefer
+/// [`download_model`].
 ///
 /// # Errors
 ///

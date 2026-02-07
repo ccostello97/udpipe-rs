@@ -27,6 +27,8 @@
 
 Rust bindings for [UDPipe](https://ufal.mff.cuni.cz/udpipe) — a trainable pipeline for tokenization, tagging, lemmatization, and dependency parsing using Universal Dependencies.
 
+Rust’s NLP ecosystem still lacks an integrated, production-ready pipeline comparable to spaCy. Most crates are either **single-purpose** (e.g. sentiment, language detection), **transformer-inference only** (e.g. rust-bert), or **rule-based** (e.g. nlprule). This library aims to fill that gap: one pipeline, many languages, trainable models, and a simple API.
+
 ## Features
 
 - **Full parsing pipeline**: Tokenization, POS tagging, lemmatization, and dependency parsing
@@ -295,13 +297,11 @@ Features in `feats` are pipe-separated `Key=Value` pairs; parse them as needed (
 Both examples work with any language model at any path.
 
 ```sh
-# Parse text (model path required)
-cargo run --example parse_text -- path/to/model.udpipe
-cargo run --example parse_text -- path/to/model.udpipe "Your text here."
+# Download the English model to a models directory (requires the 'download' feature)
+cargo run --example download_model -- english-ewt ./models
 
-# Download a model (requires the 'download' feature)
-cargo run --example download_model -- english-ewt .
-cargo run --example download_model -- german-gsd ./models
+# Parse text with that model
+cargo run --example parse_text -- ./models/english-ewt-ud-2.5-191206.udpipe "The quick brown fox jumps over the lazy dog."
 ```
 
 ## Models

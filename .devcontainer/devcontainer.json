@@ -17,7 +17,6 @@
         "fill-labs.dependi",
         "github.vscode-github-actions",
         "ldez.ignore-files",
-        "llvm-vs-code-extensions.lldb-dap",
         "llvm-vs-code-extensions.vscode-clangd",
         "redhat.vscode-yaml",
         "richie5um2.vscode-sort-json",
@@ -25,6 +24,7 @@
         "ryanluker.vscode-coverage-gutters",
         "tamasfe.even-better-toml",
         "usernamehw.errorlens",
+        "vadimcn.vscode-lldb",
         "wolfmah-vscode.just-syntax"
       ],
       "settings": {

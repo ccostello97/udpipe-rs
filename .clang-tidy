@@ -1,4 +1,5 @@
-Checks: >
+---
+Checks: |
   -*,
   bugprone-*,
   cert-*,
@@ -19,6 +20,5 @@ Checks: >
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -hicpp-no-array-decay,
   -llvm-prefer-static-over-anonymous-namespace
-
 HeaderFilterRegex: ".*/udpipe-rs/(src|include)/.*"
 WarningsAsErrors: "*"

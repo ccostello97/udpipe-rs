@@ -1,0 +1,6 @@
+---
+doublestar: true
+exclude:
+  - "vendor/**"
+formatter:
+  include_document_start: true

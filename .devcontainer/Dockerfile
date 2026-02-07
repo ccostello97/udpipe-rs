@@ -23,14 +23,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    # Install prerequisites for adding LLVM repository
     apt-get update && apt-get install -y --no-install-recommends \
+        # Install prerequisites for adding LLVM repository
         ca-certificates=20230311+deb12u1 \
         git=1:2.39.5-0+deb12u3 \
         gnupg=2.2.40-1.1+deb12u2 \
         wget=1.21.3-1+deb12u1 \
         lsb-release=12.0-1 \
         software-properties-common=0.99.30-4.1~deb12u1 \
+        # Install YAMLLint
+        yamllint=1.29.0-1 \
     # Add LLVM repository
     && wget --progress=dot:giga -O - https://apt.llvm.org/llvm-snapshot.gpg.key \
         | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg \
@@ -58,6 +60,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # Install hadolint (Dockerfile linter for IDE extension)
     && wget -qO /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-Linux-x86_64 \
     && chmod +x /usr/local/bin/hadolint \
+    # Install yamlfmt (YAML formatter)
+    && wget -qO /tmp/yamlfmt.tar.gz https://github.com/google/yamlfmt/releases/download/v0.21.0/yamlfmt_0.21.0_Linux_x86_64.tar.gz \
+    && tar -xzf /tmp/yamlfmt.tar.gz -C /usr/local/bin yamlfmt \
+    && chmod +x /usr/local/bin/yamlfmt \
+    && rm /tmp/yamlfmt.tar.gz \
     # Remove temporary packages
     && apt-get purge -y --auto-remove wget gnupg software-properties-common \
     # Configure Rust toolchain (nightly for unstable features in CI)

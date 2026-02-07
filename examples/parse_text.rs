@@ -19,7 +19,10 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let (model_path, text) = match args.as_slice() {
-        [_, path] => (path.as_str(), "The quick brown fox jumps over the lazy dog."),
+        [_, path] => (
+            path.as_str(),
+            "The quick brown fox jumps over the lazy dog.",
+        ),
         [_, path, t] => (path.as_str(), t.as_str()),
         _ => {
             eprintln!("Usage: parse_text <model_path> [text]");

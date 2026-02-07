@@ -6,11 +6,12 @@
 //! cargo run --example download_model -- [language] [dest_dir]
 //! ```
 //!
-//! - `language`: UD treebank tag (e.g. `english-ewt`, `german-gsd`). Default: `english-ewt`.
+//! - `language`: UD treebank tag (e.g. `english-ewt`, `german-gsd`). Default:
+//!   `english-ewt`.
 //! - `dest_dir`: Directory to save the model file. Default: current directory.
 //!
-//! The model file is named `{language}-ud-2.5-191206.udpipe`. Use its path with the
-//! `parse_text` example or `Model::load()`.
+//! The model file is named `{language}-ud-2.5-191206.udpipe`. Use its path with
+//! the `parse_text` example or `Model::load()`.
 
 #![allow(
     clippy::print_stdout,
@@ -30,13 +31,19 @@ fn main() {
 
     if dest_path.exists() {
         println!("Model already exists: {}", dest_path.display());
-        println!("Use with: cargo run --example parse_text -- {} <text>", dest_path.display());
+        println!(
+            "Use with: cargo run --example parse_text -- {} <text>",
+            dest_path.display()
+        );
         return;
     }
 
     println!(
         "Downloading {language} model to {} ...",
-        dest_path.parent().unwrap_or_else(|| Path::new(".")).display()
+        dest_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .display()
     );
 
     match udpipe_rs::download_model(language, dest_dir) {
