@@ -42,6 +42,15 @@ fn get_model() -> MutexGuard<'static, udpipe_rs::Model> {
         .expect("Model mutex poisoned")
 }
 
+/// Parse text and collect all sentences.
+fn parse_all(text: &str) -> Vec<udpipe_rs::Sentence> {
+    get_model()
+        .parser(text)
+        .expect("Failed to create parser")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Failed to parse")
+}
+
 /// Benchmarks parsing performance on various text lengths.
 fn bench_parse(c: &mut Criterion) {
     // Initialize model before benchmarking (download happens here)
@@ -63,17 +72,17 @@ fn bench_parse(c: &mut Criterion) {
 
     group.throughput(Throughput::Bytes(short_text.len() as u64));
     group.bench_function("short", |b| {
-        b.iter(|| get_model().parse(black_box(short_text)).unwrap());
+        b.iter(|| parse_all(black_box(short_text)));
     });
 
     group.throughput(Throughput::Bytes(medium_text.len() as u64));
     group.bench_function("medium", |b| {
-        b.iter(|| get_model().parse(black_box(medium_text)).unwrap());
+        b.iter(|| parse_all(black_box(medium_text)));
     });
 
     group.throughput(Throughput::Bytes(long_text.len() as u64));
     group.bench_function("long", |b| {
-        b.iter(|| get_model().parse(black_box(long_text)).unwrap());
+        b.iter(|| parse_all(black_box(long_text)));
     });
 
     group.finish();

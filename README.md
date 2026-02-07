@@ -36,6 +36,10 @@ Rust bindings for [UDPipe](https://ufal.mff.cuni.cz/udpipe) — a trainable pipe
 
 ## Installation
 
+### Without the download feature (default)
+
+Use this if you already have `.udpipe` model files and only need parsing. No extra dependencies.
+
 Add to your `Cargo.toml`:
 
 ```toml
@@ -43,39 +47,60 @@ Add to your `Cargo.toml`:
 udpipe-rs = "0.1"
 ```
 
-Or install via command line:
+Or via command line:
 
 ```sh
 cargo add udpipe-rs
 ```
 
+### With the download feature
+
+Use this if you want to fetch pre-trained models by language tag (e.g. `download_model("english-ewt", ".")`) or from a custom URL. This enables the `download` feature and adds the `ureq` dependency.
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+udpipe-rs = { version = "0.1", features = ["download"] }
+```
+
+Or via command line:
+
+```sh
+cargo add udpipe-rs --features download
+```
+
 ## Usage
 
-### Download and load a model
+### Load a model and parse text
+
+Create a parser with [`Model::parser`] for a given text; it returns an iterator over **sentences**. Each sentence contains words and optional multiword tokens and comments. Use any `.udpipe` model file at any path.
 
 ```rust
-use udpipe_rs::{download_model, Model};
+use udpipe_rs::Model;
 
-fn main() {
-    // Download model by language (saved to current directory)
-    let model_path = download_model("english-ewt", ".")
-        .expect("Failed to download model");
+fn main() -> Result<(), udpipe_rs::UdpipeError> {
+    // Load a model from a path (any language, any location)
+    let model = Model::load("path/to/model.udpipe")?;
 
-    // Load and parse
-    let model = Model::load(&model_path).expect("Failed to load model");
-    let words = model.parse("The quick brown fox jumps over the lazy dog.")
-        .expect("Failed to parse");
+    // Create a parser for the text
+    let parser = model.parser("The quick brown fox jumps over the lazy dog.")?;
 
-    for word in words {
-        println!("{:<4} {:<10} {:<6} {:<10} {:>2} <- {}",
-            word.id,
-            word.form,
-            word.upostag,
-            word.lemma,
-            word.head,
-            word.deprel
-        );
+    // Iterate over sentences (each item is Result<Sentence, UdpipeError>)
+    for sentence in parser {
+        let sentence = sentence?;
+        for word in &sentence.words {
+            println!("{:<4} {:<10} {:<6} {:<10} {:>2} <- {}",
+                word.id,
+                word.form,
+                word.upostag,
+                word.lemma,
+                word.head,
+                word.deprel
+            );
+        }
     }
+    Ok(())
 }
 ```
 
@@ -94,9 +119,19 @@ Output:
 10   .          PUNCT  .           5 <- punct
 ```
 
+To fetch a model by language tag instead of using a local file, enable the `download` feature and use [`download_model`]:
+
+```rust,no_run
+use udpipe_rs::{download_model, Model};
+
+// Requires: udpipe-rs with feature "download"
+let model_path = download_model("english-ewt", ".")?;
+let model = Model::load(&model_path)?;
+```
+
 ### Available languages
 
-Pre-trained models are available for 65+ languages. Use `udpipe_rs::AVAILABLE_MODELS` to see the full list:
+Pre-trained models are available for 65+ languages. Use [`udpipe_rs::AVAILABLE_MODELS`] to see the full list:
 
 ```rust
 // Some examples:
@@ -115,51 +150,63 @@ for lang in udpipe_rs::AVAILABLE_MODELS {
 
 ### Working with morphological features
 
+[`Word::feats`] is a string of pipe-separated key-value pairs (e.g. `"VerbForm=Fin|Mood=Ind|Tense=Pres"`). Parse it as needed:
+
 ```rust
 use udpipe_rs::Model;
 
-fn main() {
-    let model = Model::load("english-ewt-ud-2.5-191206.udpipe").expect("Failed to load");
-    let words = model.parse("Run quickly!").expect("Failed to parse");
+fn main() -> Result<(), udpipe_rs::UdpipeError> {
+    let model = Model::load("path/to/your-model.udpipe")?;
+    let parser = model.parser("Run quickly!")?;
 
-    for word in &words {
-        // Check for imperative mood
-        if word.is_verb() && word.has_feature("Mood", "Imp") {
-            println!("Found imperative: {}", word.form);
-        }
-
-        // Get specific features
-        if let Some(tense) = word.get_feature("Tense") {
-            println!("{} has tense: {}", word.form, tense);
+    for sentence in parser {
+        let sentence = sentence?;
+        for word in &sentence.words {
+            // Check for imperative: look for Mood=Imp in feats
+            if word.upostag == "VERB" || word.upostag == "AUX" {
+                if word.feats.contains("Mood=Imp") {
+                    println!("Found imperative: {}", word.form);
+                }
+            }
+            // Parse feats for specific keys (e.g. Tense=Pres)
+            for pair in word.feats.split('|') {
+                if let Some((k, v)) = pair.split_once('=') {
+                    if k.trim() == "Tense" {
+                        println!("{} has tense: {}", word.form, v.trim());
+                    }
+                }
+            }
         }
     }
+    Ok(())
 }
 ```
 
 ### Working with sentence structure
 
+The parser yields one [`Sentence`] per call to [`Iterator::next`]. Each sentence has [`words`](Sentence::words), [`multiword_tokens`](Sentence::multiword_tokens), and [`comments`](Sentence::comments):
+
 ```rust
 use udpipe_rs::Model;
 
-fn main() {
-    let model = Model::load("english-ewt-ud-2.5-191206.udpipe").expect("Failed to load");
-    let words = model.parse("Hello world. Goodbye world.").expect("Failed to parse");
+fn main() -> Result<(), udpipe_rs::UdpipeError> {
+    let model = Model::load("english-ewt-ud-2.5-191206.udpipe")?;
+    let parser = model.parser("Hello world. Goodbye world.")?;
 
-    // Group words by sentence
-    let mut current_sentence = -1;
-    for word in &words {
-        if word.sentence_id != current_sentence {
-            println!("\n--- Sentence {} ---", word.sentence_id + 1);
-            current_sentence = word.sentence_id;
+    for (idx, sentence) in parser.enumerate() {
+        let sentence = sentence?;
+        println!("--- Sentence {} ---", idx + 1);
+        for word in &sentence.words {
+            println!("  {}: {} ({})", word.id, word.form, word.upostag);
         }
-        println!("  {}: {} ({})", word.id, word.form, word.upostag);
     }
+    Ok(())
 }
 ```
 
 ### Download from custom URL
 
-If you need to download from a different source:
+With the `download` feature, [`download_model_from_url`] writes the model to a file at the given path:
 
 ```rust
 use udpipe_rs::download_model_from_url;
@@ -167,12 +214,12 @@ use udpipe_rs::download_model_from_url;
 download_model_from_url(
     "https://example.com/custom-model.udpipe",
     "custom-model.udpipe",
-).expect("Failed to download");
+)?;
 ```
 
 ## Thread Safety
 
-`Model` is `Send` but not `Sync`. This means:
+`Model` is [`Send`] but **not** [`Sync`]. This means:
 
 - **You can move** a model to another thread (ownership transfer)
 - **You cannot share** `&Model` across threads simultaneously
@@ -187,11 +234,13 @@ use udpipe_rs::Model;
 
 let model = Arc::new(Mutex::new(Model::load("model.udpipe")?));
 
-// Clone Arc for each thread
 let model_clone = Arc::clone(&model);
 std::thread::spawn(move || {
     let guard = model_clone.lock().unwrap();
-    let words = guard.parse("Hello world").unwrap();
+    let parser = guard.parser("Hello world").unwrap();
+    for sentence in parser {
+        let _ = sentence.unwrap();
+    }
 });
 ```
 
@@ -202,55 +251,62 @@ use udpipe_rs::Model;
 
 std::thread::spawn(|| {
     let model = Model::load("model.udpipe").unwrap();
-    let words = model.parse("Hello world").unwrap();
+    let parser = model.parser("Hello world").unwrap();
+    for sentence in parser {
+        let _ = sentence.unwrap();
+    }
 });
 ```
 
 ## API Reference
 
-### `Word` struct
+### [`Sentence`]
+
+A parsed sentence from the pipeline.
+
+| Field              | Type                  | Description                                          |
+|--------------------|-----------------------|------------------------------------------------------|
+| `words`            | `Vec<Word>`           | Words in the sentence (1-based IDs, no virtual root) |
+| `multiword_tokens` | `Vec<MultiwordToken>` | Contractions / multiword tokens (e.g. "don't")       |
+| `comments`         | `Vec<String>`         | CoNLL-U comment lines                                |
+
+### [`Word`]
 
 Each parsed word contains:
 
-| Field         | Type     | Description                                              |
-|---------------|----------|----------------------------------------------------------|
-| `form`        | `String` | The surface form (actual text)                           |
-| `lemma`       | `String` | The lemma (dictionary form)                              |
-| `upostag`     | `String` | Universal POS tag (NOUN, VERB, ADJ, etc.)                |
-| `xpostag`     | `String` | Language-specific POS tag                                |
-| `feats`       | `String` | Morphological features (e.g., "Mood=Imp\|VerbForm=Fin")  |
-| `deprel`      | `String` | Dependency relation (root, nsubj, obj, etc.)             |
-| `misc`        | `String` | Miscellaneous annotations (e.g., "SpaceAfter=No")        |
-| `id`          | `i32`    | 1-based index of this word within its sentence           |
-| `head`        | `i32`    | Index of head word (0 = root of sentence)                |
-| `sentence_id` | `i32`    | 0-based index of the sentence this word belongs to       |
+| Field      | Type       | Description                                            |
+|------------|------------|--------------------------------------------------------|
+| `form`     | `String`   | The surface form (actual text)                         |
+| `lemma`    | `String`   | The lemma (dictionary form)                            |
+| `upostag`  | `String`   | Universal POS tag (NOUN, VERB, ADJ, etc.)              |
+| `xpostag`  | `String`   | Language-specific POS tag                              |
+| `feats`    | `String`   | Morphological features (e.g. "Mood=Imp\|VerbForm=Fin") |
+| `deprel`   | `String`   | Dependency relation (root, nsubj, obj, etc.)           |
+| `deps`     | `String`   | Enhanced dependencies                                  |
+| `misc`     | `String`   | Miscellaneous annotations (e.g. "SpaceAfter=No")       |
+| `id`       | `i32`      | 1-based index of this word within its sentence         |
+| `head`     | `i32`      | Index of head word (0 = root of sentence)              |
+| `children` | `Vec<i32>` | Indices of child words in the dependency tree          |
 
-### Helper methods on `Word`
-
-- `has_feature(key, value)` — Check if a morphological feature is present
-- `get_feature(key)` — Get the value of a morphological feature
-- `is_verb()` — Returns true for VERB or AUX tags
-- `is_noun()` — Returns true for NOUN or PROPN tags
-- `is_adjective()` — Returns true for ADJ tag
-- `is_punct()` — Returns true for PUNCT tag
-- `is_root()` — Returns true if this word is the sentence root
-- `has_space_after()` — Returns true if there's a space after this word (default)
+Features in `feats` are pipe-separated `Key=Value` pairs; parse them as needed (e.g. check `upostag` for VERB/AUX, or search `feats` for "Mood=Imp").
 
 ## Examples
 
-```sh
-# Download a model
-cargo run --example download_model
-cargo run --example download_model -- german-gsd ./models
+Both examples work with any language model at any path.
 
-# Parse text
-cargo run --example parse_text
-cargo run --example parse_text -- "Your text here."
+```sh
+# Parse text (model path required)
+cargo run --example parse_text -- path/to/model.udpipe
+cargo run --example parse_text -- path/to/model.udpipe "Your text here."
+
+# Download a model (requires the 'download' feature)
+cargo run --example download_model -- english-ewt .
+cargo run --example download_model -- german-gsd ./models
 ```
 
 ## Models
 
-Pre-trained models for 100+ treebanks are available from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131). The `download_model` function fetches from this repository automatically.
+Pre-trained models for 100+ treebanks are available from the [LINDAT/CLARIAH-CZ repository](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-3131). With the `download` feature, the [`download_model`] function fetches from this repository by language tag. Without it, use any `.udpipe` file at any path with [`Model::load`].
 
 ## Requirements
 

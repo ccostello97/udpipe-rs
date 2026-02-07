@@ -1,0 +1,15 @@
+# clangd configuration - enables clang-tidy integration in IDE
+# See: https://clangd.llvm.org/config
+
+Diagnostics:
+  # Enable clang-tidy (check selection comes from .clang-tidy file)
+  ClangTidy:
+    FastCheckFilter: None
+  # Only show diagnostics for project files, not vendored code
+  Suppress: ['vendor/**']
+
+InlayHints:
+  # Show parameter names in function calls
+  ParameterNames: true
+  # Show deduced types for auto
+  DeducedTypes: true

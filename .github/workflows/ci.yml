@@ -29,15 +29,18 @@ jobs:
     name: Format check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
           components: rustfmt
+      - uses: egor-tensin/setup-clang@v2.1
+        with:
+          version: 21
       - name: Check Rust
         run: cargo fmt --all -- --check
       - name: Check C++
-        run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
+        run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-format-21 --dry-run --Werror
 
   lint:
     name: Lint check
@@ -50,10 +53,13 @@ jobs:
         with:
           toolchain: nightly
           components: clippy
+      - uses: egor-tensin/setup-clang@v2.1
+        with:
+          version: 21
       - name: Check Rust
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Check C++
-        run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-tidy-18
+        run: find src include -name '*.cpp' -o -name '*.h' | xargs clang-tidy-21
 
   test:
     name: Test
@@ -65,7 +71,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, beta]
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -79,11 +85,11 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
-      - uses: taiki-e/install-action@v2.67.11
+      - uses: taiki-e/install-action@v2.67.24
         with:
           tool: cargo-msrv
       - name: Verify MSRV
@@ -96,7 +102,7 @@ jobs:
     env:
       RUSTDOCFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -117,7 +123,7 @@ jobs:
           - sanitizer: thread
             build-std: -Zbuild-std
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -134,7 +140,7 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -149,23 +155,23 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@v2.67.11
+      - uses: taiki-e/install-action@v2.67.24
         with:
           tool: cargo-llvm-cov
       - name: Generate report
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov --all-features --workspace --ignore-filename-regex='vendor/.*' --lcov --output-path lcov.info
         env:
           CXX: clang++
       - name: Upload report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5.5.2
         with:
           files: lcov.info
           fail_ci_if_error: true
@@ -175,10 +181,10 @@ jobs:
     name: Security audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
-      - uses: rustsec/audit-check@v2
+      - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -186,7 +192,7 @@ jobs:
     name: Dependency compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: EmbarkStudios/cargo-deny-action@v2.0.15
@@ -195,7 +201,7 @@ jobs:
     name: Lockfile integrity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
@@ -208,13 +214,13 @@ jobs:
     name: Unused dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.11
+      - uses: taiki-e/install-action@v2.67.24
         with:
           tool: cargo-udeps
       - name: Find unused
@@ -224,13 +230,13 @@ jobs:
     name: Outdated dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.11
+      - uses: taiki-e/install-action@v2.67.24
         with:
           tool: cargo-outdated
       - name: Find outdated
@@ -241,13 +247,13 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.11
+      - uses: taiki-e/install-action@v2.67.24
         with:
           tool: cargo-hack
       - name: Check powerset
@@ -258,17 +264,17 @@ jobs:
     needs: [format, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.11
+      - uses: taiki-e/install-action@v2.67.24
         with:
           tool: critcmp
       - name: Cache baseline
-        uses: actions/cache@v4
+        uses: actions/cache@v5.0.3
         with:
           path: target/criterion
           key: criterion-${{ runner.os }}-${{ github.sha }}
