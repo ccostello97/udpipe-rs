@@ -1,11 +1,8 @@
 {
-  "name": "udpipe-rs",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
+    "context": "..",
+    "dockerfile": "Dockerfile"
   },
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
-  "workspaceFolder": "/workspace",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -32,9 +29,13 @@
       }
     }
   },
-  "containerEnv": {
-    "UDPIPE_RS_DEVCONTAINER": "1"
-  },
+  "mounts": [
+    "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}/.git-credentials,target=/root/.git-credentials,type=bind,readonly"
+  ],
+  "name": "udpipe-rs",
+  "postCreateCommand": "cargo fetch",
   "remoteUser": "root",
-  "postCreateCommand": "cargo fetch"
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }

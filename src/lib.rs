@@ -239,6 +239,7 @@ mod ffi {
         pub fn udpipe_parser_new(
             model: *mut UdpipeModel,
             text: *const c_char,
+            text_len: usize,
             out_error: *mut *const c_char,
         ) -> *mut UdpipeParser;
         pub fn udpipe_parser_next(
@@ -483,8 +484,8 @@ impl Model {
             &mut out_error,
             |e| {
                 // SAFETY: `self.inner` is a valid model; `c_text` is NUL-terminated; `e` is a
-                // valid out-error pointer.
-                unsafe { ffi::udpipe_parser_new(self.inner, c_text.as_ptr(), e) }
+                // valid out-error pointer. Length is the string byte length (no trailing null).
+                unsafe { ffi::udpipe_parser_new(self.inner, c_text.as_ptr(), text.len(), e) }
             },
             UdpipeErrorKind::ParserCreationFailed,
         )?;

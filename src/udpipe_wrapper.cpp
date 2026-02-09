@@ -2,6 +2,7 @@
 #include "model/model.h"
 #include "sentence/input_format.h"
 #include "sentence/sentence.h"
+#include "utils/string_piece.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +18,7 @@
 using ufal::udpipe::input_format;
 using ufal::udpipe::model;
 using ufal::udpipe::sentence;
+using ufal::udpipe::string_piece;
 
 namespace {
 // Thread-local error message. *out_error points into this; valid until next API
@@ -163,7 +165,7 @@ auto udpipe_model_load_from_memory(const uint8_t *data, size_t len,
 
 void udpipe_model_free(UdpipeModel *model) { delete model; }
 
-auto udpipe_parser_new(UdpipeModel *model, const char *text,
+auto udpipe_parser_new(UdpipeModel *model, const char *text, size_t text_len,
                        const char **out_error) -> UdpipeParser * {
   if (model == nullptr || !model->m || text == nullptr) {
     last_error() = "Invalid arguments to udpipe_parser_new";
@@ -185,9 +187,9 @@ auto udpipe_parser_new(UdpipeModel *model, const char *text,
     return nullptr;
   }
 
-  // Set text to tokenize (make_copy=true ensures text is copied since
-  // the original string may be deallocated before parsing completes)
-  tokenizer->set_text(text, true);
+  // Set text to tokenize with explicit length so we never read past initialized
+  // bytes (avoids MSan use-of-uninitialized-value from strlen/string_piece).
+  tokenizer->set_text(string_piece(text, text_len), true);
 
   auto *parser = new UdpipeParser();
   parser->model = model;

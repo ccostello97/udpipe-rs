@@ -54,7 +54,7 @@ void udpipe_model_free(UdpipeModel *model);
 // Parser functions - streaming API
 // On failure, return nullptr. If out_error != nullptr, set *out_error to the
 // error message (valid until next API call on this thread).
-auto udpipe_parser_new(UdpipeModel *model, const char *text,
+auto udpipe_parser_new(UdpipeModel *model, const char *text, size_t text_len,
                        const char **out_error) -> UdpipeParser *;
 auto udpipe_parser_next(UdpipeParser *parser, const char **out_error)
     -> UdpipeSentence *;

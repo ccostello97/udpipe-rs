@@ -103,15 +103,19 @@ test-coverage:
 test-bench:
 	cargo bench
 
-# AddressSanitizer + UBSAN
+# AddressSanitizer + UndefinedBehaviorSanitizer
 test-asan: clean
 	RUSTFLAGS="-Z sanitizer=address" cargo test --lib --tests --target $(rustc -vV | grep host | cut -d" " -f2)
 
-# ThreadSanitizer + UBSAN
+# MemorySanitizer + UndefinedBehaviorSanitizer
+test-msan: clean
+	RUSTFLAGS="-Z sanitizer=memory" cargo +nightly-2026-02-05 test -Zbuild-std --lib --tests --target $(rustc +nightly-2026-02-05 -vV | grep host | cut -d" " -f2)
+
+# ThreadSanitizer + UndefinedBehaviorSanitizer
 test-tsan: clean
 	RUSTFLAGS="-Z sanitizer=thread" cargo test -Zbuild-std --lib --tests --target $(rustc -vV | grep host | cut -d" " -f2)
 
-# Miri (undefined behavior)
+# Miri
 test-miri:
 	cargo miri test --lib
 

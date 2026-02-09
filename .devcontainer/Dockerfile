@@ -3,7 +3,7 @@
 # Development container for udpipe-rs
 # Includes all build tools, linters, and CI utilities - no local setup required
 
-FROM rust:1.93-slim-bookworm
+FROM rust:1.93.0-slim-bookworm
 
 # Use bash with pipefail so piped commands fail properly
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -11,6 +11,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # DEBIAN_FRONTEND=noninteractive - Suppress apt interactive prompts during install
 # CC=clang-21                    - C compiler used by build.rs (via cc crate)
 # CXX=clang++-21                 - C++ compiler used by build.rs for udpipe sources
+# PATH="/usr/local/bin:${PATH}"  - Add /usr/local/bin to PATH
 ENV DEBIAN_FRONTEND=noninteractive \
     CC=clang-21 \
     CXX=clang++-21 \
@@ -19,22 +20,27 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # =========================================================================
 # Install all system dependencies, LLVM toolchain, and Rust tools
 # =========================================================================
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+
+# Install hadolint (pre-built binary from Docker Hub)
+COPY --from=hadolint/hadolint:v2.14.0-debian /bin/hadolint /usr/local/bin/hadolint
+
+RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
+    --mount=from=golang:1.25.7-bookworm,source=/,target=/goroot \
+    --mount=type=tmpfs,dst=/build \
+    --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
+    # Install prerequisites for adding LLVM repository
     apt-get update && apt-get install -y --no-install-recommends \
-        # Install prerequisites for adding LLVM repository
         ca-certificates=20230311+deb12u1 \
         git=1:2.39.5-0+deb12u3 \
         gnupg=2.2.40-1.1+deb12u2 \
         wget=1.21.3-1+deb12u1 \
         lsb-release=12.0-1 \
         software-properties-common=0.99.30-4.1~deb12u1 \
-        # Install YAMLLint
-        yamllint=1.29.0-1 \
     # Add LLVM repository
-    && wget --progress=dot:giga -O - https://apt.llvm.org/llvm-snapshot.gpg.key \
+    && wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key \
         | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-21 main" \
         > /etc/apt/sources.list.d/llvm.list \
@@ -57,14 +63,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 100 \
     && update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-21 100 \
     && update-alternatives --install /usr/bin/lld lld /usr/bin/lld-21 100 \
-    # Install hadolint (Dockerfile linter for IDE extension)
-    && wget -qO /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-Linux-x86_64 \
-    && chmod +x /usr/local/bin/hadolint \
-    # Install yamlfmt (YAML formatter)
-    && wget -qO /tmp/yamlfmt.tar.gz https://github.com/google/yamlfmt/releases/download/v0.21.0/yamlfmt_0.21.0_Linux_x86_64.tar.gz \
-    && tar -xzf /tmp/yamlfmt.tar.gz -C /usr/local/bin yamlfmt \
-    && chmod +x /usr/local/bin/yamlfmt \
-    && rm /tmp/yamlfmt.tar.gz \
+    # Install yamllint (install tool via uv)
+    && UV_TOOL_BIN_DIR=/usr/local/bin /bin/uv tool install "yamllint==1.35.1" \
+    # Install yamlfmt (build from source)
+    && GOROOT=/goroot/usr/local/go GOPATH=/build GOBIN=/usr/local/bin \
+        /goroot/usr/local/go/bin/go install "github.com/google/yamlfmt/cmd/yamlfmt@v0.21.0" \
     # Remove temporary packages
     && apt-get purge -y --auto-remove wget gnupg software-properties-common \
     # Configure Rust toolchain (nightly for unstable features in CI)
