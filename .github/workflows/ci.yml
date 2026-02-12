@@ -81,7 +81,7 @@ jobs:
         with:
           submodules: true
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
-      - uses: taiki-e/install-action@v2.67.24
+      - uses: taiki-e/install-action@v2.67.28
         with:
           tool: cargo-msrv
       - name: Verify MSRV
@@ -150,7 +150,7 @@ jobs:
         with:
           toolchain: nightly
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@v2.67.24
+      - uses: taiki-e/install-action@v2.67.28
         with:
           tool: cargo-llvm-cov
       - name: Generate report
@@ -204,7 +204,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.24
+      - uses: taiki-e/install-action@v2.67.28
         with:
           tool: cargo-udeps
       - name: Find unused
@@ -219,7 +219,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.24
+      - uses: taiki-e/install-action@v2.67.28
         with:
           tool: cargo-outdated
       - name: Find outdated
@@ -235,7 +235,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.24
+      - uses: taiki-e/install-action@v2.67.28
         with:
           tool: cargo-hack
       - name: Check powerset
@@ -251,7 +251,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@v2.67.24
+      - uses: taiki-e/install-action@v2.67.28
         with:
           tool: critcmp
       - name: Cache baseline
