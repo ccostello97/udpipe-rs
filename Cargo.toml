@@ -58,7 +58,7 @@ unseparated_literal_suffix = "deny"
 bench = false
 
 [build-dependencies]
-cc = "1.2.55"
+cc = "1.2.56"
 
 [features]
 default = []
