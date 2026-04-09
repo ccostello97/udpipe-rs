@@ -29,7 +29,7 @@ jobs:
         with:
           toolchain: nightly
           components: rustfmt
-      - uses: egor-tensin/setup-clang@v2.1
+      - uses: egor-tensin/setup-clang@v2.2
         with:
           version: 21
       - name: Check Rust
@@ -47,7 +47,7 @@ jobs:
         with:
           toolchain: nightly
           components: clippy
-      - uses: egor-tensin/setup-clang@v2.1
+      - uses: egor-tensin/setup-clang@v2.2
         with:
           version: 21
       - name: Check Rust
