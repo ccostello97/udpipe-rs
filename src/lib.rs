@@ -753,7 +753,7 @@ pub const AVAILABLE_MODELS: &[&str] = &[
 /// Base URL for the LINDAT/CLARIAH-CZ model repository (UD 2.5).
 #[cfg(feature = "download")]
 const MODEL_BASE_URL: &str =
-    "https://lindat.mff.cuni.cz/repository/xmlui/bitstream/handle/11234/1-3131";
+    "https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/handle/11234/1-3131";
 
 /// Download a pre-trained model by language identifier.
 ///
@@ -1043,6 +1043,20 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.kind, UdpipeErrorKind::DownloadFailed);
         assert!(err.message.contains("empty"));
+    }
+
+    #[test]
+    #[cfg(feature = "download")]
+    #[cfg_attr(miri, ignore)]
+    fn test_download_model_from_lindat() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let model_path_result = download_model("english-ewt", &temp_dir);
+        assert!(model_path_result.is_ok());
+        let model_path = model_path_result.unwrap();
+        let model_result = Model::load(&model_path);
+        assert!(model_result.is_ok());
+        drop(temp_dir);
     }
 
     #[test]
