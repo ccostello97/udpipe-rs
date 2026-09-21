@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/ccostello97/udpipe-rs/compare/v1.0.0...v1.0.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* update LINDAT download link ([#62](https://github.com/ccostello97/udpipe-rs/issues/62)) ([74db107](https://github.com/ccostello97/udpipe-rs/commit/74db1077f70c39ee1b9945a232d5d950adb65aa2))
+
 ## [1.0.0](https://github.com/ccostello97/udpipe-rs/compare/v0.1.8...v1.0.0) (2026-02-07)
 
 
